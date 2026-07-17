@@ -1,0 +1,120 @@
+---
+title: "Anecdotario"
+sidebarTitle: "Anecdotario"
+description: "Behavioral and observational log where teachers record notable events about individual students, visible to parents through their child's dashboard."
+---
+
+The anecdotario is a structured observational journal for teachers. Each entry records a notable event — positive, negative, or neutral — about a specific student within the context of a teaching assignment and academic period. Parents can view anecdotario entries for their children through the parent portal, making it a transparent communication channel between the classroom and home.
+
+## Data Model
+
+### `Anecdotario`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier |
+| `estudianteId` | `int?` | ID of the student the entry is about |
+| `estudiante` | `String?` | Student full name (resolved from `estudiante.user.name`) |
+| `profesor` | `String?` | Teacher full name (resolved from `profesor.user.name`) |
+| `materia` | `String?` | Subject name (resolved from `asignacion_docente.subject.nombre`) |
+| `tipo` | `String?` | Observation category — e.g. `positivo`, `negativo`, `neutral` |
+| `titulo` | `String?` | Short headline for the entry |
+| `descripcion` | `String?` | Full narrative description of the event |
+| `fecha` | `String?` | ISO-8601 date the event occurred (`YYYY-MM-DD`) |
+
+The `tipo` field categorises the nature of the observation so parents and staff can quickly filter or scan entries. Common values used in the UI are `positivo`, `negativo`, and `neutral`, though the field accepts any string.
+
+## API Reference — `AnecdotarioRepository`
+
+### List anecdotario entries
+
+```dart
+Future<List<Anecdotario>> getAnecdotarios({
+  required int asignacionDocenteId,
+  required int academicPeriodId,
+})
+```
+
+**GET** `/anecdotarios?asignacion_docente_id=:id&academic_period_id=:id`
+
+Returns all entries for the given teacher assignment and academic period, ordered by the server's default (typically by `fecha` descending).
+
+---
+
+### Create an entry
+
+```dart
+Future<void> createAnecdotario({
+  required int estudianteId,
+  required int asignacionDocenteId,
+  required int academicPeriodId,
+  required String tipo,
+  required String titulo,
+  required String descripcion,
+  required String fecha,
+})
+```
+
+**POST** `/anecdotarios`
+
+All fields are required. Example usage:
+
+```dart
+await repository.createAnecdotario(
+  estudianteId: 15,
+  asignacionDocenteId: 3,
+  academicPeriodId: 1,
+  tipo: 'positivo',
+  titulo: 'Excelente participación',
+  descripcion: 'El estudiante lideró la discusión del grupo y ayudó '
+               'a sus compañeros a comprender el tema.',
+  fecha: '2025-03-12',
+);
+```
+
+The JSON body sent to the server:
+
+```json
+{
+  "estudiante_id": 15,
+  "asignacion_docente_id": 3,
+  "academic_period_id": 1,
+  "tipo": "positivo",
+  "titulo": "Excelente participación",
+  "descripcion": "El estudiante lideró la discusión del grupo y ayudó a sus compañeros a comprender el tema.",
+  "fecha": "2025-03-12"
+}
+```
+
+---
+
+### Delete an entry
+
+```dart
+Future<void> deleteAnecdotario({required int anecdotarioId})
+```
+
+**DELETE** `/anecdotarios/:anecdotarioId`
+
+Permanently removes the entry. This action cannot be undone.
+
+## Routes
+
+### Teacher routes
+
+| Route | Description |
+|---|---|
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/anecdotarios` | List all anecdotario entries for the class |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/anecdotarios/create` | Form to record a new entry |
+
+### Parent route
+
+| Route | Description |
+|---|---|
+| `/mis-hijos/:estudianteId/anecdotarios` | Parent view of all anecdotario entries for a specific child |
+
+Parents access this route through their child's dashboard at `/mis-hijos/:estudianteId`. The `PadreAnecdotarioRepository` fetches entries from `/padre/mis-hijos/:estudianteId/anecdotarios`, which returns only the entries belonging to that student and scoped to the parent's tenant.
+
+<Note>
+  Anecdotario entries are visible to parents in read-only mode. Only teachers can create or delete entries; parents have no write access to this feature.
+</Note>

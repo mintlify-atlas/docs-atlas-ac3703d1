@@ -1,0 +1,164 @@
+---
+title: "Dio HTTP Client"
+sidebarTitle: "Dio Client"
+description: "How Mi Cole configures Dio with authentication interceptors, timeout settings, and automatic 401 handling."
+---
+
+The app uses [Dio](https://pub.dev/packages/dio) as its HTTP client, configured in `lib/core/dio/dio_client.dart`. A single `Dio` instance is created in `main()` and injected into every repository via the constructor, so the entire app shares one client with consistent base options and interceptors.
+
+## DioClient.create()
+
+The static factory method that bootstraps the configured `Dio` instance:
+
+```dart
+class DioClient {
+  static Dio create() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: 'http://192.168.100.206:8000/api',
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        sendTimeout: const Duration(seconds: 10),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await SecureStorage.getToken();
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          if (kDebugMode) debugPrint('➡️ ${options.method} ${options.path}');
+          return handler.next(options);
+        },
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401) {
+            await SecureStorage.clear();
+            redirectToLogin();
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+
+    return dio;
+  }
+}
+```
+
+## BaseOptions breakdown
+
+| Option | Value | Purpose |
+|--------|-------|---------|
+| `baseUrl` | `http://192.168.100.206:8000/api` | All repository paths are relative to this root |
+| `connectTimeout` | 10 seconds | Maximum time to establish a socket connection |
+| `receiveTimeout` | 15 seconds | Maximum time to receive the full response body |
+| `sendTimeout` | 10 seconds | Maximum time to upload the request body |
+| `Content-Type` | `application/json` | Tells the server to expect JSON |
+| `Accept` | `application/json` | Requests JSON responses from the server |
+
+## Request interceptor
+
+Before every request, the interceptor reads the session token from `SecureStorage` and attaches it as a `Bearer` header:
+
+```dart
+onRequest: (options, handler) async {
+  final token = await SecureStorage.getToken();
+  if (token != null) {
+    options.headers['Authorization'] = 'Bearer $token';
+  }
+  if (kDebugMode) debugPrint('➡️ ${options.method} ${options.path}');
+  return handler.next(options);
+},
+```
+
+`SecureStorage.getToken()` reads from `FlutterSecureStorage` on mobile and from `SharedPreferences` on web, so the same interceptor code works across all platforms:
+
+```dart
+static Future<String?> getToken() async {
+  if (kIsWeb) {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+  return _storage.read(key: 'token');
+}
+```
+
+## Error interceptor
+
+When the API returns a `401 Unauthorized` response, the interceptor wipes the local session and redirects the user to the login screen without requiring a `BuildContext`:
+
+```dart
+onError: (error, handler) async {
+  if (error.response?.statusCode == 401) {
+    await SecureStorage.clear();
+    redirectToLogin();
+  }
+  return handler.next(error);
+},
+```
+
+`SecureStorage.clear()` removes the token, role, name, and email from storage (both secure storage and `SharedPreferences` depending on platform). After clearing, the error is still forwarded via `handler.next(error)` so that individual ViewModels can display an appropriate message if needed.
+
+## Debug logging
+
+In debug builds every outgoing request prints its HTTP method and path to the console:
+
+```dart
+if (kDebugMode) debugPrint('➡️ ${options.method} ${options.path}');
+```
+
+This is gated on `kDebugMode` so no logging overhead or sensitive path information is included in release builds.
+
+## Updating the base URL
+
+<Warning>
+  The default `baseUrl` points to a local development server at `http://192.168.100.206:8000/api`. You **must** change this before building for staging or production.
+</Warning>
+
+Open `lib/core/dio/dio_client.dart` and replace the `baseUrl` value:
+
+```dart
+// Development (default)
+baseUrl: 'http://192.168.100.206:8000/api',
+
+// Staging
+baseUrl: 'https://staging.micole.app/api',
+
+// Production
+baseUrl: 'https://api.micole.app/api',
+```
+
+For a more robust setup, consider reading the URL from a compile-time constant defined with `--dart-define`:
+
+```bash
+flutter run --dart-define=API_BASE_URL=https://api.micole.app/api
+```
+
+```dart
+baseUrl: const String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://192.168.100.206:8000/api',
+),
+```
+
+## redirectToLogin() and BuildContext-free navigation
+
+<Note>
+  The `redirectToLogin()` helper uses a `late` module-level `GoRouter` variable to navigate without needing a `BuildContext`. This is necessary because the Dio interceptor runs outside the widget tree.
+</Note>
+
+In `lib/core/router/app_router.dart`:
+
+```dart
+late GoRouter _routerInstance;
+
+void redirectToLogin() => _routerInstance.go('/login');
+```
+
+`_routerInstance` is assigned when `createRouter()` is called in `main()`, which always happens before any network request can be made. The `redirectToLogin()` function is then imported and called directly from the Dio error interceptor.

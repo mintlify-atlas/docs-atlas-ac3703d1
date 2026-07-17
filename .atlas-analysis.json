@@ -1,0 +1,167 @@
+{
+  "projectType": "saas",
+  "projectName": "Mi Cole",
+  "projectDescription": "A Flutter-based school management platform that serves super-admins, directors, teachers, students, and parents with role-based dashboards for academic operations.",
+  "theme": "palm",
+  "primaryColor": "#55c8fa",
+  "lightColor": "#065a9c",
+  "darkColor": "#ffffff",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "auth/overview",
+              "auth/roles"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "School Administration",
+            "pages": [
+              "features/tenant-management",
+              "features/academic-periods",
+              "features/courses-and-sections",
+              "features/subjects",
+              "features/enrollments"
+            ]
+          },
+          {
+            "group": "People Management",
+            "pages": [
+              "features/teachers",
+              "features/students",
+              "features/parents"
+            ]
+          },
+          {
+            "group": "Classroom Tools",
+            "pages": [
+              "features/class-dashboard",
+              "features/agenda-and-tasks",
+              "features/attendance",
+              "features/grade-book",
+              "features/anecdotario"
+            ]
+          },
+          {
+            "group": "Student & Parent Portal",
+            "pages": [
+              "features/student-portal",
+              "features/parent-portal",
+              "features/circulars"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "Core Infrastructure",
+            "pages": [
+              "dev/project-structure",
+              "dev/dio-client",
+              "dev/state-management",
+              "dev/routing"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "api/auth",
+              "api/tenants",
+              "api/academic",
+              "api/classroom",
+              "api/users"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-tenant school management (super-admin creates and manages schools)",
+    "Role-based access control: super-admin, director, teacher, student, parent",
+    "Academic period and evaluation period management",
+    "Course and section (paralelo) management with schedule assignment",
+    "Teacher class dashboard with attendance, agenda/tasks, grade book, and anecdotario",
+    "Student portal with schedule, subjects, pending tasks, library, and exams",
+    "Parent portal to track children's grades, attendance, agenda, and anecdotes",
+    "Circular (announcements) system with targeted delivery by role",
+    "Student enrollment management per academic period",
+    "File upload support for task submissions and agenda attachments",
+    "Secure session storage with JWT Bearer token authentication",
+    "Dio HTTP client with automatic 401 redirect and Bearer token injection"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/register",
+    "POST /api/auth/logout",
+    "GET /api/tenants",
+    "POST /api/tenants",
+    "GET /api/my-tenant",
+    "PUT /api/tenants",
+    "DELETE /api/tenants/:id",
+    "POST /api/tenants/logo",
+    "GET /api/periodos",
+    "GET /api/periodos/activo",
+    "POST /api/periodos",
+    "PATCH /api/periodos/:id/activar",
+    "DELETE /api/periodos/:id",
+    "GET /api/periodos/:periodoId/periodos-evaluacion",
+    "POST /api/periodos/:periodoId/periodos-evaluacion",
+    "GET /api/profesores",
+    "POST /api/profesores",
+    "GET /api/profesores/:id",
+    "PUT /api/profesores/:id",
+    "DELETE /api/profesores/:id",
+    "POST /api/profesores/asignar-materia",
+    "GET /api/profesores/:id/subjects",
+    "GET /api/estudiantes",
+    "POST /api/estudiantes",
+    "GET /api/estudiantes/:id",
+    "PUT /api/estudiantes/:id",
+    "DELETE /api/estudiantes/:id",
+    "GET /api/periodos/:periodoId/inscripciones",
+    "POST /api/periodos/:periodoId/inscripciones",
+    "DELETE /api/periodos/:periodoId/inscripciones/:id",
+    "GET /api/periodos/:periodoId/cursos/:cursoId/paralelos/:paraleloId/estudiantes",
+    "GET /api/periodos/:periodoId/asignaciones/:asignacionId/asistencia",
+    "POST /api/periodos/:periodoId/asignaciones/:asignacionId/asistencia",
+    "PUT /api/asistencia/:id",
+    "GET /api/periodos/:periodoId/asignaciones/:asignacionId/agenda",
+    "POST /api/periodos/:periodoId/asignaciones/:asignacionId/agenda",
+    "GET /api/agenda/:id",
+    "PUT /api/agenda/:id",
+    "DELETE /api/agenda/:id",
+    "POST /api/agenda/:id/subir-archivo",
+    "GET /api/agenda/:agendaId/entregas",
+    "GET /api/entregas/:entregaId",
+    "GET /api/asignaciones/:id/periodos-evaluacion/:periodoId/libro-calificaciones",
+    "POST /api/criterios/:criterioId/notas",
+    "GET /api/anecdotarios",
+    "POST /api/anecdotarios",
+    "DELETE /api/anecdotarios/:id",
+    "GET /api/circulares",
+    "POST /api/circulares",
+    "GET /api/circulares/:id",
+    "DELETE /api/circulares/:id",
+    "POST /api/circulares/:id/leer"
+  ]
+}

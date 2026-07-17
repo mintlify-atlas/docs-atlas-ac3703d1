@@ -1,0 +1,67 @@
+---
+title: "Mi Cole — Multi-Tenant Flutter School Platform"
+sidebarTitle: "Introduction"
+description: "Mi Cole is a multi-tenant Flutter SaaS platform that gives every school its own role-based dashboard for administrators, teachers, students, and parents."
+---
+
+Mi Cole is a cross-platform school management system built with Flutter 3. It connects every stakeholder in a school — from the super-admin who provisions institutions, to the director who manages staff and curriculum, to the teacher, student, and parent who interact with day-to-day academic life — through a single, unified mobile and web application backed by a shared REST API.
+
+## What Mi Cole Does
+
+Mi Cole operates as a **multi-tenant SaaS**: each school (tenant) gets its own isolated data space while sharing the same Flutter client. After a user logs in, the app reads their role from the JWT response and renders the correct dashboard automatically. No manual environment switching is required.
+
+<CardGroup cols={2}>
+  <Card title="Multi-Tenant Architecture" icon="building-columns">
+    Each school is an independent tenant. A super-admin can create, configure, and assign modules to any institution from a central console.
+  </Card>
+  <Card title="Role-Based Dashboards" icon="users">
+    Five distinct roles each see a tailored UI: super-admin, director, profesor, estudiante, and padre. GoRouter enforces navigation rules per role.
+  </Card>
+  <Card title="Secure Authentication" icon="lock">
+    JWT Bearer tokens are stored with `flutter_secure_storage` on mobile and `shared_preferences` on web. A Dio interceptor auto-attaches the token to every request and redirects on 401.
+  </Card>
+  <Card title="Academic Management" icon="book-open">
+    Directors manage teachers, students, parents, courses, subjects, academic periods, timetables, and enrollments, all from one place.
+  </Card>
+  <Card title="Classroom Tools" icon="chalkboard-user">
+    Teachers record attendance, maintain an agenda, manage a grade book (libro de calificaciones), write anecdotal notes, and share resources with students.
+  </Card>
+  <Card title="Student & Parent Portal" icon="house">
+    Students view their timetable, subjects, pending tasks, exams, and the library. Parents track grades, attendance, agenda entries, and anecdotes for each child.
+  </Card>
+</CardGroup>
+
+## Roles Overview
+
+Mi Cole defines five roles that map directly to the people inside a school.
+
+| Role | Spanish Label | Scope |
+|---|---|---|
+| `super-admin` | Super Administrador | Platform-wide — manages all tenants |
+| `director` | Director | Single school — manages all resources |
+| `profesor` | Profesor | Assigned classes — attendance, grades, agenda |
+| `estudiante` | Estudiante | Own profile — schedule, tasks, library |
+| `padre` | Padre de Familia | Own children — grades, attendance, agenda |
+
+After a successful login the `roles` array returned by the API determines which routes and widgets are rendered. See [Roles](/auth/roles) for a detailed capability matrix.
+
+## Tech Stack
+
+Mi Cole is built entirely in Dart and Flutter, with a clear separation between UI and data layers.
+
+| Layer | Technology | Version |
+|---|---|---|
+| UI Framework | Flutter | SDK `^3.7.2` |
+| Language | Dart | SDK `^3.7.2` |
+| HTTP Client | Dio | `^5.9.2` |
+| State Management | Provider | `^6.1.5+1` |
+| Routing | go\_router | `^14.0.0` |
+| Secure Storage | flutter\_secure\_storage | `^10.0.0` |
+| Web Storage | shared\_preferences | `^2.5.3` |
+| Localizations | flutter\_localizations | SDK bundled |
+| File Handling | file\_picker | `^8.0.0` |
+| Link Opening | url\_launcher | `^6.3.0` |
+
+<Note>
+  Mi Cole targets Android, iOS, Web, macOS, Linux, and Windows from a single codebase. Web builds use `PathUrlStrategy` for clean URLs (no `#` fragment).
+</Note>

@@ -1,0 +1,243 @@
+---
+title: "Mi Cole User Roles, Access Rights, and Capabilities"
+sidebarTitle: "Roles"
+description: "Reference for Mi Cole's five roles — super-admin, director, profesor, estudiante, and padre — their permissions and how the router enforces access."
+---
+
+Mi Cole grants access to features and screens based on a role that is returned by the API at login time. Every user belongs to exactly one role, stored in the `roles` array of the JWT response. The app reads `roles[0]` from the persisted session and uses it to build a role-appropriate navigation shell and to decide which routes are reachable. Understanding roles is the starting point for every integration, from user provisioning to UI customisation.
+
+## How Roles Are Assigned
+
+When the backend authenticates a user it returns a `roles` array inside the JSON response:
+
+```json
+{
+  "token": "eyJ0eXAiOiJKV1Qi...",
+  "user": {
+    "id": 7,
+    "name": "María González",
+    "email": "maria@school.com"
+  },
+  "roles": ["director"]
+}
+```
+
+The `Users` model parses this array and the `AuthViewModel` exposes the first element as the active role:
+
+```dart
+// lib/feature/login/users.dart
+
+factory Users.fromJson(Map<String, dynamic> json) {
+  List<String> rolesList = [];
+
+  if (json['roles'] != null) {
+    rolesList = List<String>.from(json['roles']);
+  } else if (json['role'] != null) {
+    rolesList = [json['role']];
+  }
+
+  return Users(
+    id: json['user']?['id'],
+    name: json['user']?['name'] ?? '',
+    email: json['user']?['email'] ?? '',
+    token: json['token'] ?? '',
+    roles: rolesList,
+  );
+}
+```
+
+```dart
+// lib/feature/login/auth_viewmodel.dart
+
+String? get role {
+  if (user == null || user!.roles.isEmpty) return null;
+  return user!.roles.first; // active role used throughout the app
+}
+```
+
+The role is also saved individually to `SecureStorage` under the `role` key so it is available immediately on cold start without waiting for a network request.
+
+## How the Router Uses Roles
+
+`GoRouter` in `lib/core/router/app_router.dart` does not gate individual routes behind role checks — instead the **`HomeDashboard` and `MainLayout`** widgets read `AuthViewModel.role` and render only the navigation items and links that are appropriate for the signed-in user. A `director` never sees a link to `/colegios` (super-admin only), and a `estudiante` never sees `/profesores`.
+
+The global `redirect` callback enforces only the authenticated / unauthenticated boundary:
+
+```dart
+// lib/core/router/app_router.dart
+
+redirect: (context, state) {
+  final loggedIn = authViewModel.isLoggedIn;
+  final isAuthPage =
+      state.matchedLocation == '/login' ||
+      state.matchedLocation == '/register';
+
+  if (!loggedIn && !isAuthPage) return '/login';   // protect all app routes
+  if (loggedIn && isAuthPage)  return '/home';     // skip login if already in
+  return null;
+},
+```
+
+`authViewModel` is passed as `refreshListenable` so the router re-evaluates the redirect on every `notifyListeners()` call — including after login, logout, and session restoration.
+
+## Role Capabilities
+
+<Tabs>
+  <Tab title="super-admin">
+    The super-admin has platform-wide authority. This account is created via the registration endpoint (`POST /api/auth/register`) and is the only role that can provision new schools.
+
+    **Accessible routes:**
+
+    | Route | Description |
+    |---|---|
+    | `/home` | Platform dashboard |
+    | `/colegios` | List all tenant schools |
+    | `/colegios/create` | Create a new school |
+    | `/colegios/:tenantId/modules` | Enable or disable feature modules per school |
+
+    **Capabilities:**
+    - Create, view, and manage all tenant schools on the platform
+    - Assign and revoke feature modules for individual tenants (e.g. enable the circulars module for school X)
+    - Access the full tenant list and navigate to any school's configuration
+
+    <Note>
+      The super-admin does **not** manage users, subjects, or academic data inside a school. That is the director's responsibility.
+    </Note>
+  </Tab>
+
+  <Tab title="director">
+    The director manages everything inside a single school. After a super-admin creates the tenant, a director account is assigned to that school and has full control over its academic structure.
+
+    **Accessible routes:**
+
+    | Route | Description |
+    |---|---|
+    | `/home` | School dashboard |
+    | `/colegio` | View own school profile |
+    | `/colegio/editar` | Edit school information |
+    | `/materias` | Manage subjects |
+    | `/profesores` | Manage teachers + assign subjects & timetables |
+    | `/estudiantes` | Manage students |
+    | `/padres` | Manage parents + link to children |
+    | `/cursos` | Manage grade levels + sections (paralelos) |
+    | `/periodos` | Manage academic periods + evaluation periods |
+    | `/inscripciones` | Enroll students in courses |
+    | `/circulares` | Publish school announcements |
+
+    **Capabilities:**
+    - Full CRUD for teachers (`/profesores`), including subject assignments and timetable scheduling
+    - Full CRUD for students (`/estudiantes`) and parents (`/padres`)
+    - Create and manage courses (`cursos`), class sections (`paralelos`), academic periods, and evaluation sub-periods
+    - Enroll students in courses and manage class rosters
+    - Publish, view, and detail school circulars
+    - View and edit the school's own tenant profile
+  </Tab>
+
+  <Tab title="profesor">
+    A teacher (profesor) sees only the classes they have been assigned. From the class dashboard they manage all day-to-day academic activity for that subject and section.
+
+    **Accessible routes:**
+
+    | Route | Description |
+    |---|---|
+    | `/home` | Teacher home |
+    | `/mis-clases` | List of assigned classes |
+    | `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId` | Class dashboard |
+    | `…/asistencia` | Record attendance |
+    | `…/agendas` | Create and view agenda entries (tasks, exams) |
+    | `…/agendas/:agendaId` | Agenda entry detail |
+    | `…/agendas/:agendaId/entregas` | View student submissions |
+    | `…/anecdotarios` | Write and list anecdotal records |
+    | `…/criterios` | Define grading criteria |
+    | `…/libro-calificaciones` | Grade book |
+
+    **Capabilities:**
+    - Browse all assigned classes grouped by academic period, course, and section
+    - Record daily attendance for any class
+    - Create agenda entries of type `tarea` (task) or `examen` (exam) and review student submissions with detailed delivery screen
+    - Write anecdotal notes about individual students
+    - Define grading criteria per evaluation period
+    - Maintain the grade book for each subject section
+  </Tab>
+
+  <Tab title="estudiante">
+    A student (estudiante) has a read-mostly experience focused on their own academic timeline.
+
+    **Accessible routes:**
+
+    | Route | Description |
+    |---|---|
+    | `/home` | Student home |
+    | `/mi-horario` | Personal weekly timetable |
+    | `/estudiante/materias` | All enrolled subjects |
+    | `/estudiante/materias/:asignacionId` | Subject detail |
+    | `…/pendientes` | Pending tasks for a subject |
+    | `…/pendientes/:agendaId/entrega` | Submit a task |
+    | `…/biblioteca` | Resource library for a subject |
+    | `…/examenes` | Upcoming exams for a subject |
+
+    **Capabilities:**
+    - View personal timetable (days, times, teachers, classrooms)
+    - Browse all enrolled subjects and drill into subject detail
+    - See pending tasks, submit homework via the `EntregaTarea` flow
+    - Access the resource library shared by the teacher
+    - Check upcoming exam dates per subject
+  </Tab>
+
+  <Tab title="padre">
+    A parent (padre de familia) can follow the academic progress of each child linked to their account.
+
+    **Accessible routes:**
+
+    | Route | Description |
+    |---|---|
+    | `/home` | Parent home |
+    | `/mis-hijos` | List of linked children |
+    | `/mis-hijos/:estudianteId` | Child overview dashboard |
+    | `…/agendas` | Child's agenda entries |
+    | `…/notas` | Child's grades |
+    | `…/asistencias` | Child's attendance record |
+    | `…/anecdotarios` | Child's anecdotal notes from teachers |
+
+    **Capabilities:**
+    - View all children linked to their account
+    - Access each child's personal dashboard
+    - Track grades across evaluation periods
+    - Monitor attendance history
+    - Read agenda entries and task deadlines
+    - View teacher anecdotal notes written about the child
+
+    <Tip>
+      A director links a parent to one or more students from `/padres/:id/estudiantes`. Until that link is created, the parent's `/mis-hijos` list will be empty.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Role Capabilities Summary
+
+The table below provides a condensed side-by-side comparison of what each role can access.
+
+| Capability | super-admin | director | profesor | estudiante | padre |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Manage schools (tenants) | ✅ | — | — | — | — |
+| Configure tenant modules | ✅ | — | — | — | — |
+| Manage teachers | — | ✅ | — | — | — |
+| Manage students | — | ✅ | — | — | — |
+| Manage parents | — | ✅ | — | — | — |
+| Manage courses & sections | — | ✅ | — | — | — |
+| Manage subjects | — | ✅ | — | — | — |
+| Manage academic periods | — | ✅ | — | — | — |
+| Enroll students | — | ✅ | — | — | — |
+| Publish circulars | — | ✅ | — | — | — |
+| View own class roster | — | — | ✅ | — | — |
+| Record attendance | — | — | ✅ | — | — |
+| Create agenda / exams | — | — | ✅ | — | — |
+| Write anecdotal notes | — | — | ✅ | — | — |
+| Maintain grade book | — | — | ✅ | — | — |
+| View timetable | — | — | — | ✅ | — |
+| Submit tasks | — | — | — | ✅ | — |
+| Access library | — | — | — | ✅ | — |
+| View children's grades | — | — | — | — | ✅ |
+| View children's attendance | — | — | — | — | ✅ |
+| View children's agenda | — | — | — | — | ✅ |
+| View children's anecdotes | — | — | — | — | ✅ |

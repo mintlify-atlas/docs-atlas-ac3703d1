@@ -1,0 +1,712 @@
+---
+title: "Classroom Operations API — Attendance, Agenda & Grades"
+sidebarTitle: "Classroom"
+description: "Record and review daily attendance, manage the class agenda (tasks and exams), maintain the grade book with weighted criteria, log anecdotal records, and publish school circulars."
+---
+
+Classroom operations cover everything a teacher does once the academic structure is in place. Attendance tracks who was present on a given date. The agenda holds homework assignments and exams, with optional file attachments and student submission tracking. The grade book is organized by evaluation period and weighted criteria. The anecdotario captures behavioral or academic observations per student. Circulars let directors and teachers broadcast announcements to the school community. All endpoints require `Authorization: Bearer <token>`.
+
+---
+
+## Attendance
+
+### GET /api/periodos/:periodoId/asignaciones/:asignacionId/asistencia
+
+List all attendance records for a teacher's class assignment within an academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/asignaciones/5/asistencia \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the teacher's class assignment (`asignacion_docente`).
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an array of `Asistencia` objects, each containing an `id`, `fecha`, and a `detalles` array.
+
+---
+
+### GET /api/periodos/:periodoId/asignaciones/:asignacionId/asistencia/:fecha
+
+Retrieve the attendance record for a specific date.
+
+```bash
+curl http://<your-server>/api/periodos/1/asignaciones/5/asistencia/2024-10-15 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+<ParamField path="fecha" type="string" required>
+  Date to query in `YYYY-MM-DD` format.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns a single `Asistencia` object.
+
+---
+
+### POST /api/periodos/:periodoId/asignaciones/:asignacionId/asistencia
+
+Record attendance for a class on a specific date.
+
+```bash
+curl -X POST http://<your-server>/api/periodos/1/asignaciones/5/asistencia \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fecha": "2024-10-15",
+    "asistencias": [
+      { "estudiante_id": 12, "estado": "presente", "observacion": null },
+      { "estudiante_id": 13, "estado": "ausente", "observacion": "No avisó" }
+    ]
+  }'
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  Date of the attendance record in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField body="asistencias" type="AsistenciaDetalle[]" required>
+  Array of per-student attendance entries. See [AsistenciaDetalle fields](#asistenciadetalle-fields) below.
+</ParamField>
+
+**Response — `201 Created`**
+
+---
+
+### PUT /api/asistencia/:id
+
+Update an existing attendance record (correct mistakes after submission).
+
+```bash
+curl -X PUT http://<your-server>/api/asistencia/9 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "asistencias": [
+      { "estudiante_id": 12, "estado": "tardanza", "observacion": "Llegó 10 min tarde" }
+    ]
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the attendance record to update.
+</ParamField>
+
+<ParamField body="asistencias" type="AsistenciaDetalle[]" required>
+  Updated array of per-student attendance entries.
+</ParamField>
+
+**Response — `200 OK`**
+
+#### AsistenciaDetalle Fields
+
+<ResponseField name="estudiante_id" type="integer">
+  ID of the student.
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Attendance status. Common values: `presente`, `ausente`, `tardanza`.
+</ResponseField>
+
+<ResponseField name="observacion" type="string | null">
+  Optional note about the student's attendance on this date.
+</ResponseField>
+
+---
+
+## Agenda (Tasks & Exams)
+
+### GET /api/periodos/:periodoId/asignaciones/:asignacionId/agenda
+
+List all agenda items (tasks and exams) for a class assignment.
+
+```bash
+curl http://<your-server>/api/periodos/1/asignaciones/5/agenda \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an array of `Agenda` objects, each with an `archivos` array of attached files.
+
+---
+
+### POST /api/periodos/:periodoId/asignaciones/:asignacionId/agenda
+
+Create a new task or exam for a class.
+
+```bash
+curl -X POST http://<your-server>/api/periodos/1/asignaciones/5/agenda \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Examen de álgebra",
+    "descripcion": "Capítulos 1 al 4",
+    "tipo": "examen",
+    "fecha_entrega": "2024-10-25"
+  }'
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+<ParamField body="titulo" type="string" required>
+  Title of the task or exam.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Detailed description or instructions for the item.
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Type of agenda item. Common values: `tarea`, `examen`.
+</ParamField>
+
+<ParamField body="fecha_entrega" type="string">
+  Due date in `YYYY-MM-DD` format. Optional for non-graded items.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Agenda` object inside `data`.
+
+---
+
+### GET /api/agenda/:id
+
+Retrieve a single agenda item with full detail including attached files.
+
+```bash
+curl http://<your-server>/api/agenda/42 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the agenda item.
+</ParamField>
+
+---
+
+### PUT /api/agenda/:id
+
+Update an existing agenda item.
+
+```bash
+curl -X PUT http://<your-server>/api/agenda/42 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Examen de álgebra (corregido)",
+    "descripcion": "Capítulos 1 al 5",
+    "tipo": "examen",
+    "fecha_entrega": "2024-10-27"
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the agenda item to update.
+</ParamField>
+
+<ParamField body="titulo" type="string" required>
+  Updated title.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Updated description.
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Updated type (`tarea` or `examen`).
+</ParamField>
+
+<ParamField body="fecha_entrega" type="string">
+  Updated due date in `YYYY-MM-DD` format.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### DELETE /api/agenda/:id
+
+Delete an agenda item and all its file attachments.
+
+```bash
+curl -X DELETE http://<your-server>/api/agenda/42 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the agenda item to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### POST /api/agenda/:id/subir-archivo
+
+Attach one or more files to an agenda item. Send as `multipart/form-data`.
+
+```bash
+curl -X POST http://<your-server>/api/agenda/42/subir-archivo \
+  -H "Authorization: Bearer <token>" \
+  -F "archivos[]=@/path/to/document.pdf" \
+  -F "archivos[]=@/path/to/rubric.docx"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the agenda item.
+</ParamField>
+
+<ParamField body="archivos[]" type="file[]" required>
+  One or more files to attach. Use the array field name `archivos[]`.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### DELETE /api/agenda-archivos/:id
+
+Delete a specific file attachment.
+
+```bash
+curl -X DELETE http://<your-server>/api/agenda-archivos/15 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the file attachment to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### POST /api/agenda-archivos/:id/reemplazar
+
+Replace an existing file attachment with a new version.
+
+```bash
+curl -X POST http://<your-server>/api/agenda-archivos/15/reemplazar \
+  -H "Authorization: Bearer <token>" \
+  -F "archivo=@/path/to/updated-document.pdf"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the file attachment to replace.
+</ParamField>
+
+<ParamField body="archivo" type="file" required>
+  The new file to use as a replacement.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### GET /api/agenda/:id/entregas
+
+List all student submissions for an agenda item.
+
+```bash
+curl http://<your-server>/api/agenda/42/entregas \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the agenda item.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an `EntregasResponse` object containing submission records for each enrolled student.
+
+---
+
+### GET /api/entregas/:id
+
+Retrieve the detailed view of a single student submission, including attached files and any teacher feedback.
+
+```bash
+curl http://<your-server>/api/entregas/88 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the submission record.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an `EntregaDetalleProfesor` object.
+
+---
+
+## Grade Book
+
+### GET /api/asignaciones/:id/periodos-evaluacion
+
+List the evaluation periods linked to a specific class assignment, used to populate the grade-book selector.
+
+```bash
+curl http://<your-server>/api/asignaciones/5/periodos-evaluacion \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the class assignment (`asignacion_docente`).
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an array of `PeriodoEvaluacion` objects.
+
+---
+
+### GET /api/asignaciones/:id/periodos-evaluacion/:pId/libro-calificaciones
+
+Retrieve the full grade book for a class assignment and evaluation period. Contains weighted criteria and each student's grades.
+
+```bash
+curl http://<your-server>/api/asignaciones/5/periodos-evaluacion/1/libro-calificaciones \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the class assignment.
+</ParamField>
+
+<ParamField path="pId" type="integer" required>
+  ID of the evaluation period.
+</ParamField>
+
+**Response — `200 OK`**
+
+```json
+{
+  "criterios": [
+    { "id": 1, "nombre": "Participación", "porcentaje": 20 },
+    { "id": 2, "nombre": "Examen Final", "porcentaje": 80 }
+  ],
+  "estudiantes": [
+    {
+      "estudiante_id": 12,
+      "estudiante": "María González",
+      "promedio": 18.5,
+      "notas": [
+        { "criterio_id": 1, "criterio": "Participación", "porcentaje": 20, "nota": 19 },
+        { "criterio_id": 2, "criterio": "Examen Final", "porcentaje": 80, "nota": 18.25 }
+      ]
+    }
+  ]
+}
+```
+
+<ResponseField name="criterios" type="CriterioLibro[]">
+  Weighted grading criteria for this evaluation period.
+
+  <Expandable title="CriterioLibro fields">
+    <ResponseField name="id" type="integer">Criterion ID.</ResponseField>
+    <ResponseField name="nombre" type="string">Name of the criterion.</ResponseField>
+    <ResponseField name="porcentaje" type="number">Weight as a percentage (0–100).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="estudiantes" type="EstudianteLibro[]">
+  Grade rows, one per enrolled student.
+
+  <Expandable title="EstudianteLibro fields">
+    <ResponseField name="estudiante_id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="estudiante" type="string">Student full name.</ResponseField>
+    <ResponseField name="promedio" type="number">Weighted average across all criteria.</ResponseField>
+    <ResponseField name="notas" type="NotaLibro[]">Individual criterion grades.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### POST /api/criterios/:id/notas
+
+Save or update grades for all students under a specific criterion.
+
+```bash
+curl -X POST http://<your-server>/api/criterios/1/notas \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notas": [
+      { "estudiante_id": 12, "nota": 19 },
+      { "estudiante_id": 13, "nota": 15.5 }
+    ]
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the grading criterion.
+</ParamField>
+
+<ParamField body="notas" type="object[]" required>
+  Array of grade entries.
+
+  <Expandable title="nota entry fields">
+    <ParamField body="notas[].estudiante_id" type="integer" required>
+      ID of the student.
+    </ParamField>
+    <ParamField body="notas[].nota" type="number" required>
+      Numeric grade for this criterion (scale defined by the institution).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+## Anecdotario
+
+The anecdotario is a logbook of behavioral or academic observations a teacher records about individual students.
+
+### GET /api/anecdotarios
+
+List anecdotal records filtered by class assignment and academic period.
+
+```bash
+curl "http://<your-server>/api/anecdotarios?asignacion_docente_id=5&academic_period_id=1" \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField query="asignacion_docente_id" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+<ParamField query="academic_period_id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an array of `Anecdotario` objects.
+
+---
+
+### POST /api/anecdotarios
+
+Create a new anecdotal record for a student.
+
+```bash
+curl -X POST http://<your-server>/api/anecdotarios \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "estudiante_id": 12,
+    "asignacion_docente_id": 5,
+    "academic_period_id": 1,
+    "tipo": "positivo",
+    "titulo": "Excelente participación",
+    "descripcion": "El estudiante resolvió el problema correctamente frente a la clase.",
+    "fecha": "2024-10-15"
+  }'
+```
+
+<ParamField body="estudiante_id" type="integer" required>
+  ID of the student the record is about.
+</ParamField>
+
+<ParamField body="asignacion_docente_id" type="integer" required>
+  ID of the teacher's class assignment.
+</ParamField>
+
+<ParamField body="academic_period_id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Type of record (e.g. `positivo`, `negativo`, `neutro`).
+</ParamField>
+
+<ParamField body="titulo" type="string" required>
+  Brief title summarising the observation.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Full description of the observed event.
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  Date of the observation in `YYYY-MM-DD` format.
+</ParamField>
+
+**Response — `201 Created`**
+
+---
+
+### DELETE /api/anecdotarios/:id
+
+Delete an anecdotal record.
+
+```bash
+curl -X DELETE http://<your-server>/api/anecdotarios/7 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the anecdotario record to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## Circulars
+
+Circulars are school-wide announcements published by directors or teachers and delivered to specific audience groups.
+
+### GET /api/circulares
+
+List all circulars visible to the authenticated user.
+
+```bash
+curl http://<your-server>/api/circulares \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns an array of `Circular` objects.
+
+```json
+[
+  {
+    "id": 1,
+    "titulo": "Reunión de Padres",
+    "contenido": "Se convoca a reunión el viernes 25 de octubre a las 18:00.",
+    "target": "padres",
+    "published_at": "2024-10-20T10:00:00Z",
+    "leido": false,
+    "creator": { "name": "Directora Pérez" }
+  }
+]
+```
+
+---
+
+### POST /api/circulares
+
+Publish a new circular.
+
+```bash
+curl -X POST http://<your-server>/api/circulares \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Reunión de Padres",
+    "contenido": "Se convoca a reunión el viernes 25 de octubre a las 18:00.",
+    "target": "padres"
+  }'
+```
+
+<ParamField body="titulo" type="string" required>
+  Subject line / title of the circular.
+</ParamField>
+
+<ParamField body="contenido" type="string" required>
+  Full body text of the circular.
+</ParamField>
+
+<ParamField body="target" type="string" required>
+  Audience group. Common values: `todos`, `padres`, `profesores`, `estudiantes`.
+</ParamField>
+
+**Response — `201 Created`**
+
+---
+
+### GET /api/circulares/:id
+
+Retrieve a single circular by ID.
+
+```bash
+curl http://<your-server>/api/circulares/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the circular.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns a single `Circular` object.
+
+---
+
+### POST /api/circulares/:id/leer
+
+Mark a circular as read by the authenticated user.
+
+```bash
+curl -X POST http://<your-server>/api/circulares/1/leer \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the circular to mark as read.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### DELETE /api/circulares/:id
+
+Delete a circular. Only the creator or a director can delete a circular.
+
+```bash
+curl -X DELETE http://<your-server>/api/circulares/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the circular to delete.
+</ParamField>
+
+**Response — `204 No Content`**

@@ -1,0 +1,325 @@
+---
+title: "State Management"
+sidebarTitle: "State Management"
+description: "How Mi Cole uses Provider and ChangeNotifier ViewModels to manage UI state across the app."
+---
+
+Mi Cole uses the [Provider](https://pub.dev/packages/provider) package for state management. Every feature exposes a `ChangeNotifier` ViewModel that owns the loading state, error messages, and data lists for that domain. Widgets subscribe to ViewModels using `context.watch<T>()` and trigger actions via `context.read<T>()`.
+
+## Architecture pattern
+
+```
+Widget
+  └── context.watch<ViewModel>()   ← rebuilds on notifyListeners()
+        └── ViewModel (ChangeNotifier)
+              └── Repository
+                    └── Dio (DioClient.create())
+                          └── REST API
+```
+
+Each layer has a single responsibility: widgets render state, ViewModels orchestrate async logic and hold state, repositories talk to the network, and Dio handles transport.
+
+## Provider registration
+
+All providers are registered as a flat `MultiProvider` list in `main()`. The `Dio` instance and most ViewModels are created before `runApp()` so they are available immediately:
+
+```dart
+void main() async {
+  setUrlStrategy(PathUrlStrategy());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final dio = DioClient.create();
+  final authViewModel = AuthViewModel(repository: AuthRepository(dio));
+  await authViewModel.loadSession();          // restores session before first frame
+  final router = createRouter(authViewModel); // router depends on auth state
+
+  runApp(
+    MultiProvider(
+      providers: [
+        // ── Auth ────────────────────────────────────────────────────────
+        ChangeNotifierProvider.value(value: authViewModel),
+
+        // ── Tenant ──────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => TenantViewModel(repository: TenantRepository(dio)),
+        ),
+
+        // ── Subject ─────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => SubjectViewModel(repository: SubjectRepository(dio)),
+        ),
+
+        // ── Curso ───────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => CursoViewModel(
+            repository: CursoRepository(dio),
+            periodoRepository: AcademicPeriodRepository(dio),
+          ),
+        ),
+
+        // ── Paralelo ────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => ParaleloViewModel(repository: ParaleloRepository(dio)),
+        ),
+
+        // ── Profesor ────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => ProfesorViewModel(repository: ProfesorRepository(dio)),
+        ),
+
+        // ── Estudiante ──────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => EstudianteViewModel(repository: EstudianteRepository(dio)),
+        ),
+
+        // ── Padre de familia ────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => PadreFamiliaViewModel(repository: PadreFamiliaRepository(dio)),
+        ),
+
+        // ── Periodo académico ───────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => AcademicPeriodViewModel(
+            repository: AcademicPeriodRepository(dio),
+          )..loadPeriodoActivo(),            // eagerly loads the active period
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PeriodoEvaluacionViewModel(
+            repository: PeriodoEvaluacionRepository(dio),
+          ),
+        ),
+
+        // ── Asignación de horario ───────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => AsignacionViewModel(
+            repository: AsignacionRepository(dio),
+            periodoRepository: AcademicPeriodRepository(dio),
+          ),
+        ),
+
+        // ── Circulares ──────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => CircularViewModel(repository: CircularRepository(dio)),
+        ),
+
+        // ── Inscripción ─────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => InscripcionViewModel(
+            repository: InscripcionRepository(dio),
+            periodoRepository: AcademicPeriodRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => EstudiantesClaseViewModel(
+            repository: InscripcionRepository(dio),
+          ),
+        ),
+
+        // ── Anecdotario ─────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => AnecdotarioViewModel(repository: AnecdotarioRepository(dio)),
+        ),
+
+        // ── Asistencia ──────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => AsistenciaViewModel(repository: AsistenciaRepository(dio)),
+        ),
+
+        // ── Agenda ──────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => AgendaViewModel(repository: AgendaRepository(dio)),
+        ),
+
+        // ── Módulos ─────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => ModuleViewModel(repository: ModuleRepository(dio)),
+        ),
+
+        // ── Criterio ────────────────────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => CriterioViewModel(repository: CriterioRepository(dio)),
+        ),
+
+        // ── Libro de calificaciones ─────────────────────────────────────
+        ChangeNotifierProvider(
+          create: (_) => LibroCalificacionesViewModel(
+            repository: LibroCalificacionesRepository(dio),
+          ),
+        ),
+
+        // ── Padre: agenda / asistencia / anecdotario / notas ────────────
+        ChangeNotifierProvider(
+          create: (_) => PadreAgendaViewModel(repository: PadreAgendaRepository(dio)),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PadreAsistenciaViewModel(
+            repository: PadreAsistenciaRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PadreAnecdotarioViewModel(
+            repository: PadreAnecdotarioRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PadreNotaViewModel(repository: PadreNotaRepository(dio)),
+        ),
+
+        // ── Estudiante: horario / materias / agenda / entrega ───────────
+        ChangeNotifierProvider(
+          create: (_) => EstudianteHorarioViewModel(
+            repository: EstudianteHorarioRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => EstudianteMateriaViewModel(
+            repository: EstudianteMateriaRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => EstudianteAgendaViewModel(
+            repository: EstudianteAgendaRepository(dio),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => EntregaTareaViewModel(
+            repository: EntregaTareaRepository(dio),
+          ),
+        ),
+      ],
+      child: MyApp(router: router),
+    ),
+  );
+}
+```
+
+## AuthViewModel in depth
+
+`AuthViewModel` is the most important ViewModel in the app. It is the source of truth for authentication state and drives the router redirect logic.
+
+```dart
+class AuthViewModel extends ChangeNotifier {
+  final AuthRepository repository;
+
+  Users? user;      // null when logged out
+  String? token;    // null when logged out
+  bool loading = false;
+  String? loginError;
+
+  AuthViewModel({required this.repository});
+
+  // Derived state ──────────────────────────────────────────────────────────
+  String? get role => (user == null || user!.roles.isEmpty)
+      ? null
+      : user!.roles.first;
+
+  bool get isLoggedIn => token != null;
+
+  // Restores the session from SecureStorage on app start ──────────────────
+  Future<void> loadSession() async { ... }
+
+  // Authenticates the user and persists the session ───────────────────────
+  Future<bool> login(String email, String password) async { ... }
+
+  // Registers a new user ──────────────────────────────────────────────────
+  Future<bool> register(String name, String email, String password) async { ... }
+
+  // Clears the session from storage and notifies listeners ────────────────
+  Future<void> logout() async { ... }
+}
+```
+
+### Key properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isLoggedIn` | `bool` | `true` when `token != null` |
+| `role` | `String?` | First element of `user.roles`; drives menu & redirect |
+| `user` | `Users?` | Logged-in user object (id, name, email, token, roles) |
+| `loading` | `bool` | `true` while a login/register request is in flight |
+| `loginError` | `String?` | Human-readable error from the last failed login attempt |
+
+### loadSession()
+
+`loadSession()` is awaited in `main()` before `runApp()`. It reads the persisted session from `SecureStorage` and reconstructs the `Users` object so that `isLoggedIn` and `role` are accurate when GoRouter evaluates its initial redirect:
+
+```dart
+Future<void> loadSession() async {
+  final session = await SecureStorage.getSession();
+  if (session['token'] != null) {
+    token = session['token'];
+    user = Users(
+      id: null,
+      name: session['name'] ?? '',
+      email: session['email'] ?? '',
+      token: session['token']!,
+      roles: session['role'] != null ? [session['role']!] : [],
+    );
+    notifyListeners();
+  }
+}
+```
+
+<Tip>
+  `AuthViewModel` is instantiated and `loadSession()` is awaited **before** `runApp()` is called. This guarantees that the router receives a fully-initialised `AuthViewModel` on the very first frame, preventing a flash of the login screen for users who are already authenticated.
+</Tip>
+
+## Consuming providers in widgets
+
+Use `context.watch<T>()` when you want the widget to rebuild on every change, and `context.read<T>()` when you only need to call a method without subscribing to updates.
+
+```dart
+// Rebuilds whenever AuthViewModel notifies
+final auth = context.watch<AuthViewModel>();
+
+// Fire-and-forget call — does NOT subscribe
+context.read<SubjectViewModel>().loadAll();
+```
+
+You can also use the older `Provider.of<T>(context)` form (equivalent to `watch`) or `Provider.of<T>(context, listen: false)` (equivalent to `read`).
+
+### Example: HomeDashboard consuming two ViewModels
+
+`HomeDashboard` uses `Provider.of` to read both `AuthViewModel` and `TenantViewModel` and renders role-specific content:
+
+```dart
+class HomeDashboard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final auth     = Provider.of<AuthViewModel>(context);   // watch
+    final tenantVM = Provider.of<TenantViewModel>(context); // watch
+
+    final role       = auth.role;
+    final name       = auth.user?.name ?? '';
+    final schoolName = role == 'director'
+        ? (tenantVM.currentTenant?.name ?? '')
+        : 'Admin Panel';
+
+    return Scaffold(
+      body: Column(
+        children: [
+          Text('Hola, ${name.split(' ').first}'),
+          if (role == 'director') Text(schoolName),
+          if (role == 'super-admin') ...[
+            // super-admin specific cards
+          ],
+          if (role == 'director') ...[
+            // director specific grid
+          ],
+        ],
+      ),
+    );
+  }
+}
+```
+
+## ChangeNotifierProvider.value vs create:
+
+<CardGroup cols={2}>
+  <Card title="ChangeNotifierProvider.value(value: vm)" icon="link">
+    Use when the `ChangeNotifier` is **created outside** the widget tree (i.e. before `runApp()`). The provider does not manage the object's lifecycle — you are responsible for disposing it if needed. `AuthViewModel` is the only instance of this pattern in Mi Cole because it must exist before the router is initialised.
+  </Card>
+  <Card title="ChangeNotifierProvider(create: (_) => …)" icon="plus">
+    Use for all other ViewModels. Provider creates the object lazily on first access and disposes it automatically when the owning widget is removed from the tree. This is the standard pattern for all feature ViewModels.
+  </Card>
+</CardGroup>

@@ -1,0 +1,133 @@
+---
+title: "Attendance"
+sidebarTitle: "Attendance"
+description: "Record, retrieve, and update daily student attendance for a class assignment within an academic period."
+---
+
+Attendance tracking in Mi Cole allows teachers to record the daily presence of every student enrolled in a class. Each attendance session is tied to a specific date and class assignment, and every student in the roster receives an individual status entry with an optional observation note. Teachers can submit a fresh attendance record or pull up an existing one for editing.
+
+## Data Models
+
+### `Asistencia`
+
+Represents one attendance session for a class on a given date.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier assigned by the server |
+| `fecha` | `String?` | ISO-8601 date of the session (`YYYY-MM-DD`) |
+| `detalles` | `List<AsistenciaDetalle>` | Per-student attendance entries |
+
+### `AsistenciaDetalle`
+
+Represents one student's status within an attendance session.
+
+| Field | Type | Description |
+|---|---|---|
+| `estudianteId` | `int?` | Student ID |
+| `estudiante` | `String?` | Student full name (resolved from nested JSON) |
+| `estado` | `String` | Attendance status — e.g. `presente`, `ausente`, `tardanza` |
+| `observacion` | `String?` | Optional free-text observation from the teacher |
+
+When serialised with `toJson()`, `AsistenciaDetalle` produces:
+
+```json
+{
+  "estudiante_id": 42,
+  "estado": "presente",
+  "observacion": null
+}
+```
+
+## API Reference — `AsistenciaRepository`
+
+### Register attendance
+
+```dart
+Future<void> registrarAsistencia({
+  required int periodoId,
+  required int asignacionId,
+  required String fecha,
+  required List<AsistenciaDetalle> asistencias,
+})
+```
+
+**POST** `/periodos/:periodoId/asignaciones/:asignacionId/asistencia`
+
+Creates a new attendance record for the given date. The full request body shape:
+
+```json
+{
+  "fecha": "2025-03-10",
+  "asistencias": [
+    { "estudiante_id": 1, "estado": "presente", "observacion": null },
+    { "estudiante_id": 2, "estado": "ausente",  "observacion": "Aviso previo" },
+    { "estudiante_id": 3, "estado": "tardanza",  "observacion": "Llegó 10 min tarde" }
+  ]
+}
+```
+
+---
+
+### Get attendance for a specific date
+
+```dart
+Future<Asistencia> obtenerAsistencia({
+  required int periodoId,
+  required int asignacionId,
+  required String fecha,
+})
+```
+
+**GET** `/periodos/:periodoId/asignaciones/:asignacionId/asistencia/:fecha`
+
+Returns the `Asistencia` record for a particular date. If no record exists for that date, the server returns a 404.
+
+<Tip>
+  Before submitting a new attendance record, call `obtenerAsistencia` for today's date. If a record already exists, use `actualizarAsistencia` with its `id` rather than creating a duplicate entry.
+</Tip>
+
+---
+
+### List all attendance records for a class
+
+```dart
+Future<List<Asistencia>> listarAsistencias({
+  required int periodoId,
+  required int asignacionId,
+})
+```
+
+**GET** `/periodos/:periodoId/asignaciones/:asignacionId/asistencia`
+
+Returns every `Asistencia` record for the class, useful for building historical views or summary reports.
+
+---
+
+### Update an existing attendance record
+
+```dart
+Future<void> actualizarAsistencia({
+  required int asistenciaId,
+  required List<AsistenciaDetalle> asistencias,
+})
+```
+
+**PUT** `/asistencia/:asistenciaId`
+
+Replaces the detail entries of an existing attendance session. The request body contains only the `asistencias` array:
+
+```json
+{
+  "asistencias": [
+    { "estudiante_id": 1, "estado": "ausente", "observacion": "Se fue antes del recreo" },
+    { "estudiante_id": 2, "estado": "presente", "observacion": null }
+  ]
+}
+```
+
+## Route
+
+| Route | Description |
+|---|---|
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/asistencia` | Open the attendance screen for the class |

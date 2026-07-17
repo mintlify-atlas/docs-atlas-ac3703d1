@@ -1,0 +1,74 @@
+---
+title: "Class Dashboard"
+sidebarTitle: "Class Dashboard"
+description: "Central hub for teachers to access all tools for a specific class — attendance, agenda, grade book, anecdotario, and evaluation criteria."
+---
+
+The class dashboard is the central hub for teachers in Mi Cole. After selecting a class from the **My Classes** screen (`/mis-clases`), a teacher lands on this dashboard, which surfaces every teaching tool scoped to that specific course-section-subject assignment. All navigation from here inherits the full route context so that each sub-feature knows exactly which class it is operating on.
+
+## Navigation
+
+Teachers reach the dashboard by tapping **Entrar** on any class card in `/mis-clases`. The app resolves the four path parameters and appends three display-name query parameters so the dashboard can render human-readable labels without an extra API call.
+
+<Steps>
+  <Step title="Open My Classes">
+    Navigate to `/mis-clases`. The screen loads the teacher's academic periods and lists all assigned classes, grouped by course and section.
+  </Step>
+  <Step title="Select a period">
+    Use the period dropdown at the top of the screen to switch between academic periods. The class list refreshes automatically.
+  </Step>
+  <Step title="Enter a class">
+    Tap **Entrar** on the desired subject row. The app navigates to the dashboard using the full route below.
+  </Step>
+</Steps>
+
+## Route Structure
+
+```
+/mis-clases
+└── /:periodoId/:cursoId/:paraleloId/:asignacionId
+      ?curso=<name>&paralelo=<name>&materia=<name>
+```
+
+| Segment | Type | Description |
+|---|---|---|
+| `periodoId` | `int` | Academic period ID |
+| `cursoId` | `int` | Course (grade level) ID |
+| `paraleloId` | `int` | Section (parallel) ID |
+| `asignacionId` | `int` | Teacher-subject-course-section assignment ID |
+
+### Query Parameters
+
+| Parameter | Description |
+|---|---|
+| `curso` | Display name of the course, e.g. `"Décimo"` |
+| `paralelo` | Display name of the section, e.g. `"A"` |
+| `materia` | Display name of the subject, e.g. `"Matemáticas"` |
+
+The app bar shows `$curso - $paralelo` and the card heading shows `$materia`, giving the teacher immediate visual context.
+
+## The `asignacion` Concept
+
+An **asignación** (`asignacionId`) represents a unique combination of teacher + subject + course + section within an academic period. It is the primary key that scopes all classroom operations — attendance records, agenda items, grade book entries, and anecdotario logs are all linked to this single identifier.
+
+## Available Sub-Features
+
+Every tool below is accessible directly from the dashboard card.
+
+<CardGroup cols={2}>
+  <Card title="Attendance" icon="check-circle" href="/features/attendance">
+    Record daily presence or absence for every student in the class. Route: `.../asistencia`
+  </Card>
+  <Card title="Agenda & Tasks" icon="calendar-days" href="/features/agenda-and-tasks">
+    Create and manage homework assignments, exams, and other agenda items with optional file attachments. Route: `.../agendas`
+  </Card>
+  <Card title="Grade Book" icon="book-open" href="/features/grade-book">
+    Enter and review grades organised by evaluation criteria and evaluation periods. Route: `.../libro-calificaciones`
+  </Card>
+  <Card title="Anecdotario" icon="notebook" href="/features/anecdotario">
+    Log behavioral and observational notes about individual students. Route: `.../anecdotarios`
+  </Card>
+  <Card title="Evaluation Criteria" icon="list-check" href="/features/grade-book#evaluation-criteria">
+    Define weighted grading criteria for each evaluation period of the assignment. Route: `.../criterios`
+  </Card>
+</CardGroup>

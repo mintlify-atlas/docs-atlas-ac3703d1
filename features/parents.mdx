@@ -1,0 +1,226 @@
+---
+title: "Parents"
+sidebarTitle: "Parents"
+description: "Register parents and guardians, link them to their children, and give them real-time visibility into grades, attendance, and school communications."
+---
+
+Parents (padres de familia) are the guardians or legal representatives of enrolled students. A parent account can be linked to one or more students through a `PadreHijo` relationship that records the type of kinship (padre, madre, tutor, abuelo, or otro). Once the link is established, the parent gains a read-only portal showing grades, attendance records, the class agenda, and the anecdotario for each of their children — all scoped to the current tenant.
+
+## The PadreFamilia Model
+
+Parent identity fields (`name`, `email`) are stored on the linked user account and surfaced through the `user` relationship in every API response. Contact and professional details are stored directly on the parent record.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Primary key, auto-assigned |
+| `name` | `string` | Full name (from the linked user account) |
+| `email` | `string` | Login e-mail (from the linked user account) |
+| `telefono` | `string?` | Optional contact phone number |
+| `ocupacion` | `string?` | Optional occupation or profession |
+| `roles` | `string[]` | Always includes `"padre_familia"` |
+
+```json
+{
+  "id": 7,
+  "telefono": "0999-123-456",
+  "ocupacion": "Ingeniero",
+  "user": {
+    "name": "Roberto Mendoza",
+    "email": "rmendoza@correo.com"
+  }
+}
+```
+
+## The PadreHijo Relationship Model
+
+The `PadreHijo` model represents the link between a parent and a student. It is returned when calling `GET /padre/mis-hijos` from a logged-in parent session.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Student's primary key |
+| `nombre` | `string` | Student's full name |
+| `codigoEstudiante` | `string` | Student's unique code |
+| `parentesco` | `string` | Kinship type: `padre`, `madre`, `tutor`, `abuelo`, or `otro` |
+
+```json
+{
+  "id": 34,
+  "nombre": "Carlos Mendoza",
+  "codigo_estudiante": "EST-2024-001",
+  "parentesco": "padre"
+}
+```
+
+## Repository Methods
+
+The `PadreFamiliaRepository` class handles all HTTP communication with the API. Every method uses the injected `Dio` client and the `/padre-familias` resource path.
+
+<CardGroup cols={2}>
+  <Card title="List Parents" icon="list">
+    `GET /api/padre-familias`
+
+    Returns the full list of registered parents in the current tenant.
+  </Card>
+  <Card title="Create Parent" icon="user-plus">
+    `POST /api/padre-familias`
+
+    Creates a new parent and their linked user account in a single request.
+  </Card>
+  <Card title="Get Parent" icon="user">
+    `GET /api/padre-familias/:id`
+
+    Fetches a single parent record by its numeric ID.
+  </Card>
+  <Card title="Update Parent" icon="pen-to-square">
+    `PUT /api/padre-familias/:id`
+
+    Updates the parent's profile. Omit `password` to keep the existing one.
+  </Card>
+  <Card title="Delete Parent" icon="trash">
+    `DELETE /api/padre-familias/:id`
+
+    Permanently removes the parent and their user account from the tenant.
+  </Card>
+  <Card title="Assign Student" icon="link">
+    `POST /api/padre-familias/asignar-estudiante`
+
+    Links a student to the parent with a specified kinship type.
+  </Card>
+  <Card title="Get Parent's Students" icon="children">
+    `GET /api/padre-familias/:id/estudiantes`
+
+    Returns the list of students currently linked to the given parent.
+  </Card>
+  <Card title="My Children (parent session)" icon="house">
+    `GET /api/padre/mis-hijos`
+
+    Returns the children linked to the currently authenticated parent, including kinship information.
+  </Card>
+</CardGroup>
+
+### createPadre
+
+<ParamField body="name" type="string" required>
+  Full name of the parent or guardian.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Login e-mail address. Must be unique across the tenant.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password for the parent's user account. Required only on creation.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Optional contact phone number.
+</ParamField>
+
+<ParamField body="ocupacion" type="string">
+  Optional occupation or profession of the parent.
+</ParamField>
+
+```dart
+Future<PadreFamilia> createPadre({
+  required String name,
+  required String email,
+  required String password,
+  String? telefono,
+  String? ocupacion,
+}) async {
+
+  final response = await _dio.post('/padre-familias', data: {
+    'name': name,
+    'email': email,
+    'password': password,
+    'telefono': telefono,
+    'ocupacion': ocupacion,
+  });
+  return PadreFamilia.fromJson(response.data['data']);
+}
+```
+
+### asignarEstudiante
+
+<ParamField body="padre_familia_id" type="int" required>
+  ID of the parent to link the student to.
+</ParamField>
+
+<ParamField body="estudiante_id" type="int" required>
+  ID of the student to link.
+</ParamField>
+
+<ParamField body="parentesco" type="string">
+  Kinship type. Accepted values: `padre`, `madre`, `tutor`, `abuelo`, `otro`. Defaults to `padre` when omitted.
+</ParamField>
+
+```dart
+Future<void> asignarEstudiante({
+  required int padreId,
+  required int estudianteId,
+  String? parentesco,
+}) async {
+
+  await _dio.post(
+    '/padre-familias/asignar-estudiante',
+    data: {
+      "padre_familia_id": padreId,
+      "estudiante_id": estudianteId,
+      "parentesco": parentesco,
+    },
+  );
+}
+```
+
+## Linking a Parent to a Student
+
+<Steps>
+  <Step title="Create the parent account">
+    Navigate to `/padres/create` and fill in the name, e-mail, password, and optional contact fields. On success, the parent is added to the tenant directory and can log in immediately.
+  </Step>
+  <Step title="Open the assign-student screen">
+    From the parent list, tap the **Assign Student** action to navigate to `/padres/:id/estudiantes`. The screen loads the full list of registered students from `GET /api/estudiantes`.
+  </Step>
+  <Step title="Select a student and kinship">
+    Choose the student from the dropdown and select the kinship type (`padre`, `madre`, `tutor`, `abuelo`, or `otro`). Tap **Asignar Estudiante** to confirm. This calls `POST /api/padre-familias/asignar-estudiante`.
+  </Step>
+  <Step title="Parent sees their child's data">
+    After the link is created, the parent's portal shows real-time data for that child: grades, attendance records, the class agenda, and anecdotario entries.
+  </Step>
+</Steps>
+
+<Tip>
+  A parent can be linked to multiple students. Repeat steps 2–3 for each additional child. Each link is independent and carries its own `parentesco` value.
+</Tip>
+
+## What Parents Can See
+
+Once a student is linked to a parent, the parent's authenticated session gives them read-only access to the following data for each child:
+
+<CardGroup cols={2}>
+  <Card title="Grades" icon="graduation-cap">
+    All scored assessments and final grades recorded by the teacher in the gradebook for the current academic period.
+  </Card>
+  <Card title="Attendance" icon="calendar-check">
+    Daily attendance records showing present, absent, and late entries for every class session.
+  </Card>
+  <Card title="Agenda & Tasks" icon="book-open">
+    Homework assignments and upcoming events published by the teacher on the class agenda.
+  </Card>
+  <Card title="Anecdotario" icon="note-sticky">
+    Behavioral and observational notes recorded by the teacher for the student throughout the period.
+  </Card>
+</CardGroup>
+
+## Application Routes
+
+| Route | Screen | Description |
+|---|---|---|
+| `/padres` | `PadreListScreen` | Paginated list of all registered parents |
+| `/padres/create` | `PadreCreateScreen` | Form to register a new parent |
+| `/padres/:id/edit` | `PadreEditScreen` | Form to edit an existing parent's profile |
+| `/padres/:id/estudiantes` | `PadreAsignarEstudianteScreen` | Assign a student to the parent with kinship type |
+
+<Note>
+  `password` is only required when **creating** a parent account. When updating, leave the password field empty to keep the existing credentials unchanged. The API only includes the field in the `PUT` payload when a new value is explicitly provided.
+</Note>

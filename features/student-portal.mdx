@@ -1,0 +1,406 @@
+---
+title: "Student Portal"
+sidebarTitle: "Student Portal"
+description: "Complete reference for the Mi Cole student-facing features: schedule, subjects, tasks, exams, library, and task submission."
+---
+
+The Student Portal gives enrolled students a single place to view their weekly schedule, browse their subjects, track pending tasks and upcoming exams, access shared library materials, and submit task deliverables — all scoped to the tenant (school) they belong to.
+
+## Route Map
+
+| Route | Screen | Description |
+|---|---|---|
+| `/mi-horario` | `EstudianteHorarioScreen` | Full weekly schedule |
+| `/estudiante/materias` | `EstudianteMateriasScreen` | List of enrolled subjects |
+| `/estudiante/materias/:asignacionId` | `EstudianteMateriaDetalleScreen` | Single subject detail |
+| `/estudiante/materias/:asignacionId/pendientes` | `EstudianteAgendaScreen` (tipo=tarea) | Pending homework tasks |
+| `/estudiante/materias/:asignacionId/examenes` | `EstudianteAgendaScreen` (tipo=examen) | Scheduled exams |
+| `/estudiante/materias/:asignacionId/biblioteca` | `EstudianteBibliotecaScreen` | Library files for the subject |
+| `/estudiante/materias/:asignacionId/pendientes/:agendaId/entrega` | `EstudianteEntregaTareaScreen` | Task submission form |
+
+---
+
+## My Schedule
+
+**Route:** `/mi-horario`
+
+The schedule screen lists every class block assigned to the student's course and parallel for the current academic period.
+
+### EstudianteHorarioRepository
+
+```dart
+class EstudianteHorarioRepository {
+  final Dio _dio;
+  EstudianteHorarioRepository(this._dio);
+
+  Future<List<HorarioItem>> getHorario() async {
+    final response = await _dio.get('/estudiante/horario');
+    return (response.data as List)
+        .map((e) => HorarioItem.fromJson(e))
+        .toList();
+  }
+}
+```
+
+**Endpoint:** `GET /estudiante/horario`
+
+### HorarioItem Model
+
+<ParamField body="id" type="int?" >
+  Unique identifier for the schedule slot.
+</ParamField>
+
+<ParamField body="dia" type="String?">
+  Day of the week (e.g. `"Lunes"`, `"Martes"`).
+</ParamField>
+
+<ParamField body="horaInicio" type="String?">
+  Start time in `HH:mm` format. Mapped from `hora_inicio`.
+</ParamField>
+
+<ParamField body="horaFin" type="String?">
+  End time in `HH:mm` format. Mapped from `hora_fin`.
+</ParamField>
+
+<ParamField body="materia" type="String?">
+  Subject name for this slot.
+</ParamField>
+
+<ParamField body="profesor" type="String?">
+  Full name of the teacher assigned to this slot.
+</ParamField>
+
+---
+
+## My Subjects
+
+**Route:** `/estudiante/materias`
+
+Displays the list of subjects the student is enrolled in for the current period.
+
+### EstudianteMateriaRepository
+
+```dart
+class EstudianteMateriaRepository {
+  final Dio dio;
+  EstudianteMateriaRepository(this.dio);
+
+  Future<List<EstudianteMateria>> getMaterias() async {
+    final response = await dio.get('/estudiante/materias');
+    return (response.data as List)
+        .map((e) => EstudianteMateria.fromJson(e))
+        .toList();
+  }
+
+  Future<MateriaDetalle> getDetalleMateria(int asignacionId) async {
+    final response = await dio.get('/estudiante/materias/$asignacionId');
+    return MateriaDetalle.fromJson(response.data);
+  }
+}
+```
+
+**Endpoints:**
+- `GET /estudiante/materias` — list of enrolled subjects
+- `GET /estudiante/materias/:asignacionId` — detail for a single subject
+
+### EstudianteMateria Model
+
+<ParamField body="asignacionId" type="int" required>
+  The teaching assignment ID. Used as the key throughout child routes. Mapped from `asignacion_id`.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Subject name.
+</ParamField>
+
+<ParamField body="profesor" type="String" required>
+  Teacher's full name.
+</ParamField>
+
+---
+
+## Subject Detail
+
+**Route:** `/estudiante/materias/:asignacionId`
+
+Shows full detail for a single subject, including its weekly schedule blocks.
+
+### MateriaDetalle Model
+
+<ParamField body="asignacionId" type="int" required>
+  Teaching assignment ID. Mapped from `asignacion_id`.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Subject name.
+</ParamField>
+
+<ParamField body="profesor" type="String" required>
+  Teacher's full name.
+</ParamField>
+
+<ParamField body="horarios" type="List<HorarioMateria>" required>
+  Weekly schedule slots for this subject. Each entry contains `dia`, `horaInicio`, and `horaFin`.
+</ParamField>
+
+---
+
+## Pending Tasks
+
+**Route:** `/estudiante/materias/:asignacionId/pendientes`
+
+Lists homework tasks assigned to the student for a specific subject, filtered by `tipo=tarea`.
+
+### EstudianteAgendaRepository
+
+```dart
+class EstudianteAgendaRepository {
+  final Dio dio;
+  EstudianteAgendaRepository(this.dio);
+
+  Future<List<PadreAgenda>> getPendientes({
+    String? tipo,
+    int? asignacionId,
+  }) async {
+    final response = await dio.get(
+      '/estudiante/pendientes',
+      queryParameters: {
+        if (asignacionId != null) 'asignacion_id': asignacionId,
+        if (tipo != null) 'tipo': tipo,
+      },
+    );
+    return (response.data as List)
+        .map((e) => PadreAgenda.fromJson(e))
+        .toList();
+  }
+}
+```
+
+**Endpoint:** `GET /estudiante/pendientes?asignacion_id=:id&tipo=tarea`
+
+### PadreAgenda Model (used for tasks and exams)
+
+<ParamField body="id" type="int" required>
+  Agenda entry ID.
+</ParamField>
+
+<ParamField body="titulo" type="String" required>
+  Title of the task or exam.
+</ParamField>
+
+<ParamField body="descripcion" type="String" required>
+  Detailed description or instructions.
+</ParamField>
+
+<ParamField body="tipo" type="String" required>
+  Entry type: `"tarea"` for tasks, `"examen"` for exams.
+</ParamField>
+
+<ParamField body="fechaEntrega" type="String?">
+  Due date in ISO format. Mapped from `fecha_entrega`.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Name of the subject this entry belongs to.
+</ParamField>
+
+<ParamField body="archivos" type="List<AgendaArchivo>">
+  Attached reference files. Each item has `id`, `nombreOriginal`, and `url`.
+</ParamField>
+
+---
+
+## Exams
+
+**Route:** `/estudiante/materias/:asignacionId/examenes`
+
+Uses the same `EstudianteAgendaRepository.getPendientes()` method as the tasks screen, but passes `tipo: "examen"` to filter for exam entries only.
+
+**Endpoint:** `GET /estudiante/pendientes?asignacion_id=:id&tipo=examen`
+
+---
+
+## Library
+
+**Route:** `/estudiante/materias/:asignacionId/biblioteca`
+
+Shows the shared study materials (PDFs, documents, links) published by the teacher for this subject.
+
+### EstudianteAgendaRepository – getBiblioteca
+
+```dart
+Future<List<EstudianteBiblioteca>> getBiblioteca({
+  int? asignacionId,
+}) async {
+  final response = await dio.get(
+    '/estudiante/biblioteca',
+    queryParameters: {
+      if (asignacionId != null) 'asignacion_id': asignacionId,
+    },
+  );
+  return (response.data as List)
+      .map((e) => EstudianteBiblioteca.fromJson(e))
+      .toList();
+}
+```
+
+**Endpoint:** `GET /estudiante/biblioteca?asignacion_id=:id`
+
+### EstudianteBiblioteca Model
+
+<ParamField body="id" type="int" required>
+  Library entry ID.
+</ParamField>
+
+<ParamField body="titulo" type="String" required>
+  Title of the library item.
+</ParamField>
+
+<ParamField body="descripcion" type="String" required>
+  Description or summary.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Subject the item belongs to.
+</ParamField>
+
+<ParamField body="profesor" type="String" required>
+  Teacher who published this material.
+</ParamField>
+
+<ParamField body="createdAt" type="String" required>
+  Creation timestamp. Mapped from `created_at`.
+</ParamField>
+
+<ParamField body="archivos" type="List<AgendaArchivo>" required>
+  Downloadable files. Each item exposes `id`, `nombreOriginal`, and a fully-resolved `url`.
+</ParamField>
+
+---
+
+## Task Submission
+
+**Route:** `/estudiante/materias/:asignacionId/pendientes/:agendaId/entrega`
+
+Allows the student to submit their work for a task. Submissions consist of an optional text comment and one or more uploaded files.
+
+### EntregaTareaRepository
+
+```dart
+class EntregaTareaRepository {
+  final Dio dio;
+  EntregaTareaRepository(this.dio);
+
+  /// Fetch an existing submission for a task (returns null if not yet submitted).
+  Future<EntregaTarea?> getEntrega(int agendaId) async {
+    final response = await dio.get('/estudiante/tareas/$agendaId/entrega');
+    if (response.data == null) return null;
+    return EntregaTarea.fromJson(response.data);
+  }
+
+  /// Create a new submission record; returns the new entrega ID.
+  Future<int> crearEntrega({
+    required int agendaId,
+    String? comentario,
+  }) async {
+    final response = await dio.post(
+      '/estudiante/tareas/$agendaId/entrega',
+      data: {
+        if (comentario != null) 'comentario': comentario,
+      },
+    );
+    return response.data['id'];
+  }
+
+  /// Upload one or more files to an existing submission.
+  Future<List<EntregaTareaArchivo>> subirArchivos({
+    required int entregaId,
+    required List<MultipartFile> archivos,
+  }) async {
+    final formData = FormData();
+    for (final file in archivos) {
+      formData.files.add(MapEntry('archivos[]', file));
+    }
+    final response = await dio.post(
+      '/estudiante/entregas/$entregaId/archivos',
+      data: formData,
+    );
+    return (response.data['archivos'] as List)
+        .map((e) => EntregaTareaArchivo.fromJson(e))
+        .toList();
+  }
+
+  /// Delete a single uploaded file from a submission.
+  Future<void> eliminarArchivo(int archivoId) async {
+    await dio.delete('/estudiante/entrega-archivos/$archivoId');
+  }
+}
+```
+
+### Submitting a Task — Step by Step
+
+<Steps>
+  <Step title="Create the submission record">
+    Call `crearEntrega()` with the `agendaId` and an optional comment. The server returns the new `entregaId`.
+
+    ```dart
+    final entregaId = await entregaTareaRepository.crearEntrega(
+      agendaId: agenda.id,
+      comentario: 'Adjunto mi resolución completa.',
+    );
+    ```
+  </Step>
+  <Step title="Upload files">
+    Wrap each picked file as a `MultipartFile` and pass the list to `subirArchivos()`.
+
+    ```dart
+    final archivos = pickedFiles.map((path) =>
+      MultipartFile.fromFileSync(path, filename: basename(path)),
+    ).toList();
+
+    final uploaded = await entregaTareaRepository.subirArchivos(
+      entregaId: entregaId,
+      archivos: archivos,
+    );
+    ```
+  </Step>
+  <Step title="Confirm upload">
+    The response contains the list of `EntregaTareaArchivo` objects that were saved. Display them in the UI or navigate back to the task list.
+  </Step>
+</Steps>
+
+### EntregaTarea Model
+
+<ParamField body="id" type="int" required>
+  Submission record ID.
+</ParamField>
+
+<ParamField body="comentario" type="String?">
+  Optional text comment from the student.
+</ParamField>
+
+<ParamField body="fechaEntrega" type="String?">
+  Timestamp of when the submission was created. Mapped from `fecha_entrega`.
+</ParamField>
+
+<ParamField body="estado" type="String" required>
+  Submission state (e.g. `"pendiente"`, `"revisado"`).
+</ParamField>
+
+<ParamField body="archivos" type="List<EntregaTareaArchivo>" required>
+  Files attached to this submission.
+</ParamField>
+
+### EntregaTareaArchivo Model
+
+<ParamField body="id" type="int" required>
+  File record ID.
+</ParamField>
+
+<ParamField body="nombreOriginal" type="String" required>
+  Original filename as uploaded by the student. Mapped from `nombre_original`.
+</ParamField>
+
+<ParamField body="url" type="String" required>
+  Fully resolved download URL. Relative URLs are automatically prefixed with the base server address.
+</ParamField>

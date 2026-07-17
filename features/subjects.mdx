@@ -1,0 +1,198 @@
+---
+title: "Subjects"
+sidebarTitle: "Subjects"
+description: "Create and manage the academic subjects (materias) taught across all courses and sections in a school."
+---
+
+Subjects (`Subject` / *materias*) are the academic disciplines offered by a school—such as Mathematics, Language Arts, or Natural Sciences. They live at the tenant level and are independent of any particular academic period or course. Once created, subjects can be **assigned to teachers** so that each teacher is linked to the disciplines they will instruct, enabling grade books, schedules, and class dashboards to be scoped correctly.
+
+---
+
+## Subject Model
+
+```dart
+class Subject {
+  final int?    id;
+  final String? name;
+  final int?    tenantId;
+
+  Subject({this.id, this.name, this.tenantId});
+
+  factory Subject.fromJson(Map<String, dynamic> json) {
+    return Subject(
+      id:       json['id'],
+      name:     json['name'],
+      tenantId: json['tenant_id'],
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for the subject.
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  Display name of the subject, e.g. `"Matemáticas"` or `"Lengua y Literatura"`.
+</ParamField>
+
+<ParamField path="tenantId" type="int">
+  Tenant-scoping identifier. Populated server-side; subjects are isolated per school.
+</ParamField>
+
+---
+
+## SubjectRepository
+
+All four CRUD operations plus a single-record fetch are available in `SubjectRepository`.
+
+```dart
+class SubjectRepository {
+  final Dio _dio;
+  SubjectRepository(this._dio);
+}
+```
+
+<Tabs>
+  <Tab title="List Subjects">
+    Returns all subjects belonging to the current tenant.
+
+    ```dart
+    Future<List<Subject>> getSubjects() async {
+      final response = await _dio.get('/subjects');
+      return (response.data as List)
+          .map((e) => Subject.fromJson(e))
+          .toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/subjects`
+
+    ```json
+    [
+      { "id": 1, "name": "Matemáticas",        "tenant_id": 3 },
+      { "id": 2, "name": "Lengua y Literatura", "tenant_id": 3 },
+      { "id": 3, "name": "Ciencias Naturales",  "tenant_id": 3 }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Get by ID">
+    Fetches a single subject record by its ID. Used internally by `SubjectEditScreen` to pre-populate the edit form.
+
+    ```dart
+    Future<Subject> getSubjectById(int id) async {
+      final response = await _dio.get('/subjects/$id');
+      return Subject.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `GET /api/subjects/:id`
+  </Tab>
+
+  <Tab title="Create Subject">
+    Creates a new subject scoped to the authenticated tenant.
+
+    ```dart
+    Future<Subject> createSubject(String name) async {
+      final response = await _dio.post(
+        '/subjects',
+        data: {'name': name},
+      );
+      return Subject.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `POST /api/subjects`
+
+    ```json
+    // Request body
+    { "name": "Historia" }
+
+    // Response
+    { "id": 4, "name": "Historia", "tenant_id": 3 }
+    ```
+  </Tab>
+
+  <Tab title="Update Subject">
+    Updates the name of an existing subject.
+
+    ```dart
+    Future<Subject> updateSubject({
+      required int    id,
+      required String name,
+    }) async {
+      final response = await _dio.put(
+        '/subjects/$id',
+        data: {'name': name},
+      );
+      return Subject.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `PUT /api/subjects/:id`
+  </Tab>
+
+  <Tab title="Delete Subject">
+    Permanently removes a subject.
+
+    ```dart
+    Future<void> deleteSubject(int id) async {
+      await _dio.delete('/subjects/$id');
+    }
+    ```
+
+    **Endpoint:** `DELETE /api/subjects/:id`
+
+    <Warning>
+      Deleting a subject that is currently assigned to one or more teachers or linked to grade book entries may cause data integrity errors. Remove all teacher assignments before deleting.
+    </Warning>
+  </Tab>
+</Tabs>
+
+---
+
+## Assigning Subjects to Teachers
+
+Subjects become actionable when they are assigned to a teacher. This links a `Profesor` to a `Subject` and optionally to a specific `Paralelo`, forming the basis for class dashboards, grade books, and schedule entries.
+
+**Endpoint:** `POST /api/profesores/asignar-materia`
+
+Directors navigate to `/profesores/:id/materia` to open `AsignarMateriaScreen`, where they select a subject and (optionally) a section to complete the assignment. After assignment, the teacher's assigned subjects are visible at `/profesores/:id/materias-asignadas`.
+
+<Steps>
+  <Step title="Open the teacher profile">
+    Navigate to `/profesores` and select the teacher you want to assign a subject to.
+  </Step>
+  <Step title="Go to subject assignment">
+    Tap **Asignar materia** to navigate to `/profesores/:id/materia`, which opens `AsignarMateriaScreen`.
+  </Step>
+  <Step title="Choose the subject">
+    The screen lists all subjects returned by `GET /api/subjects`. Select the desired subject from the dropdown or list.
+  </Step>
+  <Step title="Save the assignment">
+    Confirm to call `POST /api/profesores/asignar-materia`. The assignment is now visible under the teacher's assigned-subjects view and enables grade book and schedule features.
+  </Step>
+</Steps>
+
+---
+
+## App Routes
+
+<CardGroup cols={2}>
+  <Card title="/materias" icon="book">
+    List all subjects for the school (`SubjectListScreen`).
+  </Card>
+  <Card title="/materias/create" icon="plus">
+    Create a new subject (`SubjectScreen`).
+  </Card>
+  <Card title="/materias/:id/edit" icon="pen">
+    Edit an existing subject's name (`SubjectEditScreen`).
+  </Card>
+  <Card title="/profesores/:id/materia" icon="chalkboard-user">
+    Assign a subject to a specific teacher (`AsignarMateriaScreen`).
+  </Card>
+  <Card title="/profesores/:id/materias-asignadas" icon="list-check">
+    View all subjects assigned to a teacher (`MateriasAsignadasScreen`).
+  </Card>
+</CardGroup>

@@ -1,0 +1,225 @@
+---
+title: "Tenants API — School Management Endpoints"
+sidebarTitle: "Tenants"
+description: "Create, read, update, and delete school tenants. Super-admins manage the full tenant list; directors interact with their own school through the /my-tenant endpoints."
+---
+
+Mi Cole is a multi-tenant platform where each school is an isolated tenant. Super-admin users can provision new schools and view all existing ones. Directors log in to their own subdomain and interact only with their school via the `/my-tenant` route. Every endpoint below requires a valid `Authorization: Bearer <token>` header obtained from the [Authentication API](/api/auth).
+
+---
+
+## GET /api/tenants
+
+List every school registered on the platform. Restricted to users with the `super-admin` role.
+
+```bash
+curl http://<your-server>/api/tenants \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns an array of `Tenant` objects (see [Tenant Model](#tenant-model) below).
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Colegio San José",
+    "slug": "san-jose",
+    "logo": "tenants/logos/1.png",
+    "logo_url": "http://<your-server>/storage/tenants/logos/1.png"
+  }
+]
+```
+
+---
+
+## POST /api/tenants
+
+Create a new school tenant and automatically provision a director account. Returns a `TenantResponse` that includes the new `Tenant` object plus the director's initial credentials.
+
+```bash
+curl -X POST http://<your-server>/api/tenants \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Colegio San José",
+    "slug": "san-jose",
+    "director_name": "Luis Rodríguez",
+    "director_email": "director@san-jose.edu",
+    "password": "director_pass"
+  }'
+```
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  Human-readable name of the school (e.g. `"Colegio San José"`).
+</ParamField>
+
+<ParamField body="slug" type="string" required>
+  URL-friendly identifier for the tenant. Must be unique (e.g. `"san-jose"`).
+</ParamField>
+
+<ParamField body="director_name" type="string" required>
+  Full name of the director user that will be created alongside the tenant.
+</ParamField>
+
+<ParamField body="director_email" type="string" required>
+  E-mail address for the new director account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password for the director account.
+</ParamField>
+
+**Response — `201 Created`**
+
+```json
+{
+  "tenant": {
+    "id": 3,
+    "name": "Colegio San José",
+    "slug": "san-jose",
+    "logo": null,
+    "logo_url": null
+  }
+}
+```
+
+<ResponseField name="tenant" type="object">
+  The newly created `Tenant` object. See [Tenant Model](#tenant-model).
+</ResponseField>
+
+---
+
+## GET /api/my-tenant
+
+Retrieve the school that belongs to the currently authenticated director. The response includes a `logo_url` pointing to the publicly accessible logo image.
+
+```bash
+curl http://<your-server>/api/my-tenant \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+{
+  "data": {
+    "id": 3,
+    "name": "Colegio San José",
+    "slug": "san-jose",
+    "logo": "tenants/logos/3.png"
+  },
+  "logo_url": "http://<your-server>/storage/tenants/logos/3.png"
+}
+```
+
+Returns a `Tenant` object (with `logo_url` merged in) for the caller's school.
+
+---
+
+## PUT /api/tenants
+
+Update the name and slug of the authenticated director's school.
+
+```bash
+curl -X PUT http://<your-server>/api/tenants \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Colegio San José Actualizado",
+    "slug": "san-jose-v2"
+  }'
+```
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  New display name for the school.
+</ParamField>
+
+<ParamField body="slug" type="string" required>
+  New URL slug. Must remain unique across all tenants.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns the updated `Tenant` object inside `data`.
+
+---
+
+## DELETE /api/tenants/:id
+
+Permanently remove a school tenant. Super-admin access only.
+
+```bash
+curl -X DELETE http://<your-server>/api/tenants/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Path parameters**
+
+<ParamField path="id" type="integer" required>
+  The numeric ID of the tenant to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## POST /api/tenants/logo
+
+Upload or replace the school logo. Send the file as `multipart/form-data` with the field name `logo`.
+
+```bash
+curl -X POST http://<your-server>/api/tenants/logo \
+  -H "Authorization: Bearer <token>" \
+  -F "logo=@/path/to/school-logo.png"
+```
+
+**Request body (multipart)**
+
+<ParamField body="logo" type="file" required>
+  The image file to use as the school logo. Accepted formats: `image/png`, `image/jpeg`.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns a success indicator. The new logo is accessible via `GET /api/my-tenant` in the `logo_url` field.
+
+---
+
+## Tenant Model
+
+<ResponseField name="id" type="integer">
+  Unique numeric identifier for the school.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Human-readable name of the school.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL-safe unique identifier used to scope tenant data.
+</ResponseField>
+
+<ResponseField name="logo" type="string | null">
+  Relative storage path of the logo file, e.g. `tenants/logos/3.png`. Null if no logo has been uploaded.
+</ResponseField>
+
+<ResponseField name="logo_url" type="string | null">
+  Absolute public URL to the logo image. Only present in `GET /api/my-tenant` responses.
+</ResponseField>
+
+---
+
+## TenantResponse Model
+
+Returned by `POST /api/tenants`.
+
+<ResponseField name="tenant" type="Tenant">
+  The fully created `Tenant` object for the new school.
+</ResponseField>

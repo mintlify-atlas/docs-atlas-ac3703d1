@@ -1,0 +1,251 @@
+---
+title: "Authentication Overview — JWT Tokens and Session Handling"
+sidebarTitle: "Overview"
+description: "How Mi Cole authenticates users with JWT Bearer tokens, persists sessions across restarts, auto-attaches headers via Dio, and handles 401 logouts."
+---
+
+Mi Cole uses **JWT Bearer token** authentication. When a user provides valid credentials the backend returns a signed token along with the user's profile and role list. That token is stored locally and automatically attached to every subsequent HTTP request via a Dio interceptor. If the server ever rejects a request with a `401 Unauthorized` response the app clears the stored session and redirects the user to the login screen without any manual intervention.
+
+## Authentication Flow
+
+1. The user enters their email and password on the login screen.
+2. `AuthViewModel.login()` calls `AuthRepository.login()`, which posts to `POST /api/auth/login`.
+3. The API returns a JSON payload containing `token`, `user`, and `roles`.
+4. `AuthViewModel` parses the response into a `Users` object and calls `SecureStorage.saveSession()`.
+5. `GoRouter` detects the state change (via `refreshListenable: authViewModel`) and redirects from `/login` to `/home`.
+6. All subsequent Dio requests include `Authorization: Bearer <token>` injected by the interceptor.
+
+## Login Endpoint
+
+**`POST /api/auth/login`**
+
+```json
+// Request body
+{
+  "email": "director@school.com",
+  "password": "password123"
+}
+
+// 200 OK response
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "user": {
+    "id": 42,
+    "name": "Ana Torres",
+    "email": "director@school.com"
+  },
+  "roles": ["director"]
+}
+```
+
+## `AuthRepository` — Login, Register, and Logout
+
+`AuthRepository` is the sole class that makes raw HTTP calls for authentication. It receives the shared `Dio` instance from `main.dart` and returns typed `Users` objects.
+
+```dart
+// lib/feature/login/auth_repository.dart
+
+class AuthRepository {
+  final Dio _dio;
+  AuthRepository(this._dio);
+
+  // LOGIN
+  Future<Users> login(String email, String password) async {
+    final response = await _dio.post(
+      '/auth/login',
+      data: {
+        'email': email,
+        'password': password,
+      },
+    );
+    return Users.fromJson(response.data);
+  }
+
+  // REGISTER (role defaults to 'super-admin')
+  Future<Users> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    final response = await _dio.post(
+      '/auth/register',
+      data: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': 'super-admin',
+      },
+    );
+    return Users.fromJson(response.data);
+  }
+
+  // LOGOUT
+  Future<void> logout() async {
+    try {
+      await _dio.post('/auth/logout');
+    } catch (e) {
+      print("ERROR LOGOUT: $e");
+    }
+  }
+}
+```
+
+<Note>
+  The registration endpoint always creates a `super-admin` account. Roles such as `director`, `profesor`, `estudiante`, and `padre` are assigned by a super-admin or director through the management UI after the user record exists in the backend.
+</Note>
+
+## `SecureStorage` — Persisting the Session
+
+`SecureStorage` is a static utility class that abstracts platform-specific storage. It stores four keys: `token`, `role`, `name`, and `email`.
+
+```dart
+// lib/core/storage/secure_storage.dart
+
+class SecureStorage {
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  /// Persists the JWT session. Uses SharedPreferences on web,
+  /// FlutterSecureStorage on Android / iOS / desktop.
+  static Future<void> saveSession({
+    required String token,
+    required String role,
+    required String name,
+    required String email,
+  }) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', token);
+      await prefs.setString('role', role);
+      await prefs.setString('name', name);
+      await prefs.setString('email', email);
+    } else {
+      await Future.wait([
+        _storage.write(key: 'token', value: token),
+        _storage.write(key: 'role', value: role),
+        _storage.write(key: 'name', value: name),
+        _storage.write(key: 'email', value: email),
+      ]);
+    }
+  }
+
+  /// Retrieves the stored JWT token (or null if no session exists).
+  static Future<String?> getToken() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token');
+    }
+    return _storage.read(key: 'token');
+  }
+
+  /// Clears all session keys. Called on logout and on 401 errors.
+  static Future<void> clear() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        prefs.remove('token'),
+        prefs.remove('role'),
+        prefs.remove('name'),
+        prefs.remove('email'),
+      ]);
+    } else {
+      await _storage.deleteAll();
+    }
+  }
+}
+```
+
+### Platform Storage Strategy
+
+| Platform | Storage Backend | Notes |
+|---|---|---|
+| Android | `FlutterSecureStorage` | Backed by `EncryptedSharedPreferences` |
+| iOS | `FlutterSecureStorage` | Backed by the iOS Keychain |
+| macOS / Linux / Windows | `FlutterSecureStorage` | OS credential store |
+| Web | `SharedPreferences` | `localStorage`-backed; not encrypted |
+
+<Warning>
+  Web sessions stored in `localStorage` are readable by JavaScript running on the same origin. For production deployments consider using `HttpOnly` cookies or a server-side session instead.
+</Warning>
+
+## Dio Interceptor — Automatic Token Injection
+
+The `DioClient.create()` factory registers an `InterceptorsWrapper` that handles every outgoing request and every error response:
+
+```dart
+// lib/core/dio/dio_client.dart
+
+dio.interceptors.add(
+  InterceptorsWrapper(
+    onRequest: (options, handler) async {
+      final token = await SecureStorage.getToken();
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+      if (kDebugMode) debugPrint('➡️ ${options.method} ${options.path}');
+      return handler.next(options);
+    },
+    onError: (error, handler) async {
+      if (error.response?.statusCode == 401) {
+        await SecureStorage.clear();   // wipe local session
+        redirectToLogin();             // navigate to /login (no BuildContext needed)
+      }
+      return handler.next(error);
+    },
+  ),
+);
+```
+
+Every request checks `SecureStorage.getToken()` asynchronously. Because both mobile and web storage calls are awaited before `handler.next(options)` is called, the token is always present in the header by the time the request leaves the client.
+
+## Session Restoration at App Start
+
+`AuthViewModel.loadSession()` is `await`-ed in `main()` before `runApp()` is called. If a stored token is found the view-model reconstructs a `Users` object from the four saved keys and sets `isLoggedIn` to `true`, allowing `GoRouter` to open `/home` directly.
+
+```dart
+// lib/feature/login/auth_viewmodel.dart
+
+Future<void> loadSession() async {
+  final session = await SecureStorage.getSession();
+
+  if (session['token'] != null) {
+    token = session['token'];
+    user = Users(
+      id: null,
+      name: session['name'] ?? '',
+      email: session['email'] ?? '',
+      token: session['token']!,
+      roles: session['role'] != null ? [session['role']!] : [],
+    );
+    notifyListeners();
+  }
+}
+```
+
+## Logout
+
+Calling `AuthViewModel.logout()` posts to `POST /api/auth/logout` (best-effort — errors are silently swallowed), then clears local storage, nulls `user` and `token`, and calls `notifyListeners()`. `GoRouter`'s `refreshListenable` callback fires and redirects the user to `/login`.
+
+```dart
+// lib/feature/login/auth_viewmodel.dart
+
+Future<void> logout() async {
+  try {
+    await repository.logout(); // POST /api/auth/logout
+  } catch (_) {}
+
+  await SecureStorage.clear();
+  user = null;
+  token = null;
+  notifyListeners(); // triggers GoRouter redirect → /login
+}
+```
+
+## Auth Endpoints Summary
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Authenticate with email + password, returns JWT + roles |
+| `POST` | `/api/auth/register` | Create a new `super-admin` account |
+| `POST` | `/api/auth/logout` | Invalidate the server-side token (best-effort) |

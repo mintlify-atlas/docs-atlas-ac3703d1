@@ -1,0 +1,184 @@
+---
+title: "Teachers"
+sidebarTitle: "Teachers"
+description: "Manage teaching staff, assign subjects, and configure weekly schedules for each professor in your school."
+---
+
+Teachers (profesores) are the teaching staff managed by the school director. Each teacher has a unique teacher code (`codigo_profesor`) and an optional specialty field that describes their area of expertise. Once created, a teacher can be assigned to one or more subjects and then given schedule slots that define when and where each class takes place during an academic period.
+
+## The Profesor Model
+
+Every teacher record is returned from the API nested under a `user` object for the identity fields (`name`, `email`) and a top-level `profesor` object for the school-specific fields.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Primary key, auto-assigned |
+| `name` | `string` | Full name (from the linked user account) |
+| `email` | `string` | Login e-mail (from the linked user account) |
+| `codigo` | `string` | Unique teacher code (`codigo_profesor`) |
+| `especialidad` | `string?` | Optional specialty or subject area |
+| `roles` | `string[]` | Always includes `"profesor"` |
+
+```json
+{
+  "id": 12,
+  "codigo_profesor": "PROF-001",
+  "especialidad": "Matemáticas",
+  "user": {
+    "name": "María García",
+    "email": "mgarcia@escuela.edu"
+  }
+}
+```
+
+## Repository Methods
+
+The `ProfesorRepository` class handles all HTTP communication with the API. Every method uses the injected `Dio` client and the `/profesores` resource path.
+
+<CardGroup cols={2}>
+  <Card title="List Teachers" icon="list">
+    `GET /api/profesores`
+
+    Returns the full list of teachers for the current tenant.
+  </Card>
+  <Card title="Create Teacher" icon="user-plus">
+    `POST /api/profesores`
+
+    Creates a new teacher and their linked user account in a single request.
+  </Card>
+  <Card title="Get Teacher" icon="user">
+    `GET /api/profesores/:id`
+
+    Fetches a single teacher record by its numeric ID.
+  </Card>
+  <Card title="Update Teacher" icon="pen-to-square">
+    `PUT /api/profesores/:id`
+
+    Updates the teacher's profile. Omit `password` to keep the existing one.
+  </Card>
+  <Card title="Delete Teacher" icon="trash">
+    `DELETE /api/profesores/:id`
+
+    Permanently removes the teacher and their user account.
+  </Card>
+  <Card title="Assign Subject" icon="book-open">
+    `POST /api/profesores/asignar-materia`
+
+    Links a subject to a teacher so the subject appears in schedule assignment screens.
+  </Card>
+  <Card title="Get Teacher Subjects" icon="books">
+    `GET /api/profesores/:id/subjects`
+
+    Returns the list of subjects currently assigned to a teacher.
+  </Card>
+</CardGroup>
+
+### createProfesor
+
+<ParamField body="name" type="string" required>
+  Full name of the teacher.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Login e-mail address. Must be unique across the tenant.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password for the teacher's user account. Only required on creation.
+</ParamField>
+
+<ParamField body="codigo_profesor" type="string" required>
+  Unique teacher code used to identify the teacher in timetables and reports.
+</ParamField>
+
+<ParamField body="especialidad" type="string">
+  Optional specialty or subject area (e.g. "Matemáticas", "Ciencias Naturales").
+</ParamField>
+
+```dart
+Future<Profesor> createProfesor({
+  required String name,
+  required String email,
+  required String password,
+  required String codigo,
+  String? especialidad,
+}) async {
+
+  final response = await _dio.post(
+    '/profesores',
+    data: {
+      'name': name,
+      'email': email,
+      'password': password,
+      'codigo_profesor': codigo,
+      'especialidad': especialidad,
+    },
+  );
+
+  return Profesor.fromJson(
+    response.data['data'],
+  );
+}
+```
+
+### asignarMateria
+
+<ParamField body="profesor_id" type="int" required>
+  ID of the teacher to assign the subject to.
+</ParamField>
+
+<ParamField body="subject_id" type="int" required>
+  ID of the subject to assign.
+</ParamField>
+
+```dart
+Future<void> asignarMateria({
+  required int profesorId,
+  required int subjectId,
+}) async {
+
+  await _dio.post(
+    '/profesores/asignar-materia',
+    data: {
+      'profesor_id': profesorId,
+      'subject_id': subjectId,
+    },
+  );
+}
+```
+
+## Schedule Assignment Flow
+
+Scheduling a teacher involves two distinct steps. The first step links the teacher to a subject; the second step places that linked class into a specific time slot within an academic period.
+
+<Steps>
+  <Step title="Assign a subject to the teacher">
+    Navigate to the teacher's profile and tap the **Assign Subject** action. Select the subject from the list of available subjects for the tenant and confirm. This calls `POST /api/profesores/asignar-materia`.
+  </Step>
+  <Step title="Create a schedule assignment">
+    Navigate to the teacher's schedule screen (`/profesores/:id/horario`) and fill in the period, course, section, day, start time, and end time. This calls `POST /api/periodos/:periodoId/asignaciones` with a `horarios` array.
+  </Step>
+  <Step title="Verify in Mis Clases">
+    The teacher can open the **Mis Clases** screen to see their assigned classes grouped by course and section for each academic period. Each card lists the subjects and provides an **Entrar** button to open the class dashboard.
+  </Step>
+</Steps>
+
+<Tip>
+  A teacher must be assigned to a subject **before** that subject can appear in the schedule assignment drop-down. Always complete step 1 first.
+</Tip>
+
+## Application Routes
+
+| Route | Screen | Description |
+|---|---|---|
+| `/profesores` | `ProfesorListScreen` | Paginated list of all teachers |
+| `/profesores/create` | `ProfesorCreateScreen` | Form to create a new teacher |
+| `/profesores/:id/edit` | `ProfesorEditScreen` | Form to edit an existing teacher |
+| `/profesores/:id/materia` | `ProfesorAsignarMateriaScreen` | Assign a subject to the teacher |
+| `/profesores/:id/horario` | `ProfesorHorarioScreen` | Add schedule slots for the teacher |
+| `/profesores/:id/ver-horario` | `ProfesorVerHorarioScreen` | Read-only weekly timetable view |
+| `/profesores/:id/materias-asignadas` | `ProfesorMateriasAsignadasScreen` | List of subjects currently assigned |
+
+<Note>
+  Deleting a teacher is irreversible. The associated user account and all schedule assignments linked to that teacher are removed from the tenant. Back up the data or reassign schedule slots before confirming deletion.
+</Note>

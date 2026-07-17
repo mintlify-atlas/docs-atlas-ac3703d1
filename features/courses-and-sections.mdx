@@ -1,0 +1,313 @@
+---
+title: "Courses & Sections"
+sidebarTitle: "Courses & Sections"
+description: "Organize grade levels as courses (cursos) and subdivide them into sections (paralelos) with optional schedule assignments."
+---
+
+In Mi Cole, **courses** (`Curso`) represent grade levels or year groups—for example *Primero de Bachillerato* or *Séptimo de Básica*. Each course is associated with an academic period and can be divided into one or more **sections** (`Paralelo`), such as *Paralelo A*, *Paralelo B*, or *Vespertino*. This two-level hierarchy lets a school manage multiple classrooms within the same grade, each with its own teacher assignments and timetable.
+
+---
+
+## Curso Model
+
+```dart
+class Curso {
+  final int?    id;
+  final String? nombre;
+  final String? nivel;
+  final String? descripcion;
+  final bool?   estado;
+  final int?    tenantId;
+
+  Curso({
+    this.id,
+    this.nombre,
+    this.nivel,
+    this.descripcion,
+    this.estado,
+    this.tenantId,
+  });
+
+  factory Curso.fromJson(Map<String, dynamic> json) {
+    return Curso(
+      id:          json['id'],
+      nombre:      json['nombre'],
+      nivel:       json['nivel'],
+      descripcion: json['descripcion'],
+      estado:      json['estado'] == 1 || json['estado'] == true,
+      tenantId:    json['tenant_id'],
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for the course.
+</ParamField>
+
+<ParamField path="nombre" type="String" required>
+  Display name, e.g. `"Primero de Bachillerato"`.
+</ParamField>
+
+<ParamField path="nivel" type="String" required>
+  Education level tag, e.g. `"Bachillerato"` or `"Básica"`.
+</ParamField>
+
+<ParamField path="descripcion" type="String">
+  Optional free-text description of the course.
+</ParamField>
+
+<ParamField path="estado" type="bool">
+  Whether the course is currently active. Parsed from integer `1`/`0` or boolean.
+</ParamField>
+
+<ParamField path="tenantId" type="int">
+  Tenant-scoping identifier, populated server-side.
+</ParamField>
+
+---
+
+## CursoRepository
+
+Courses are scoped to an academic period. All endpoints include the `periodoId` in the path.
+
+```dart
+class CursoRepository {
+  final Dio _dio;
+  CursoRepository(this._dio);
+
+  // List all courses for a period
+  Future<List<Curso>> getCursos(int periodoId) async {
+    final response = await _dio.get('/periodos/$periodoId/cursos');
+    return (response.data as List)
+        .map((e) => Curso.fromJson(e))
+        .toList();
+  }
+
+  // Create a new course within a period
+  Future<Curso> createCurso({
+    required int    periodoId,
+    required String nombre,
+    required String nivel,
+    String?         descripcion,
+  }) async {
+    final response = await _dio.post(
+      '/periodos/$periodoId/cursos',
+      data: {
+        'nombre':      nombre,
+        'nivel':       nivel,
+        'descripcion': descripcion,
+      },
+    );
+    return Curso.fromJson(response.data);
+  }
+
+  // Delete a course
+  Future<void> deleteCurso(int periodoId, int id) async {
+    await _dio.delete('/periodos/$periodoId/cursos/$id');
+  }
+}
+```
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `getCursos(periodoId)` | `GET /api/periodos/:id/cursos` | List courses for an academic period |
+| `createCurso(...)` | `POST /api/periodos/:id/cursos` | Create a course within an academic period |
+| `deleteCurso(periodoId, id)` | `DELETE /api/periodos/:id/cursos/:cursoId` | Delete a course |
+
+---
+
+## Paralelo Model
+
+A `Paralelo` (section) belongs to a `Curso` and optionally embeds the full `Curso` object when returned from the API.
+
+```dart
+class Paralelo {
+  final int?    id;
+  final int?    cursoId;
+  final String? nombre;
+  final String? turno;
+  final int?    capacidad;
+  final int?    tenantId;
+  final Curso?  curso;       // populated when included in API response
+
+  Paralelo({
+    this.id,
+    this.cursoId,
+    this.nombre,
+    this.turno,
+    this.capacidad,
+    this.tenantId,
+    this.curso,
+  });
+
+  factory Paralelo.fromJson(Map<String, dynamic> json) {
+    return Paralelo(
+      id:        json['id'],
+      cursoId:   json['curso_id'],
+      nombre:    json['nombre'],
+      turno:     json['turno'],
+      capacidad: json['capacidad'],
+      tenantId:  json['tenant_id'],
+      curso:     json['curso'] != null ? Curso.fromJson(json['curso']) : null,
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for the section.
+</ParamField>
+
+<ParamField path="cursoId" type="int" required>
+  Foreign key referencing the parent `Curso`.
+</ParamField>
+
+<ParamField path="nombre" type="String" required>
+  Section label, e.g. `"A"`, `"B"`, or `"Matutino"`.
+</ParamField>
+
+<ParamField path="turno" type="String">
+  Shift descriptor such as `"Matutino"` or `"Vespertino"`.
+</ParamField>
+
+<ParamField path="capacidad" type="int">
+  Maximum number of students the section can hold.
+</ParamField>
+
+<ParamField path="curso" type="Curso">
+  Embedded `Curso` object when the section is returned with course details included.
+</ParamField>
+
+---
+
+## ParaleloRepository
+
+<Tabs>
+  <Tab title="List All Sections">
+    Retrieves every section across all courses for the tenant.
+
+    ```dart
+    Future<List<Paralelo>> getParalelos() async {
+      final response = await _dio.get('/paralelos');
+      return (response.data as List)
+          .map((e) => Paralelo.fromJson(e))
+          .toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/paralelos`
+  </Tab>
+
+  <Tab title="List by Course & Period">
+    Retrieves only the sections belonging to a specific course within an academic period. The response payload wraps the list under a `data` key.
+
+    ```dart
+    Future<List<Paralelo>> getParalelosByCurso(
+      int periodoId,
+      int cursoId,
+    ) async {
+      final response = await _dio.get(
+        '/periodos/$periodoId/cursos/$cursoId/paralelos',
+      );
+      final List data = response.data['data'];
+      return data.map((e) => Paralelo.fromJson(e)).toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/periodos/:periodoId/cursos/:cursoId/paralelos`
+  </Tab>
+
+  <Tab title="Create Section">
+    Creates a new section and associates it with an existing course.
+
+    ```dart
+    Future<Paralelo> createParalelo({
+      required int    cursoId,
+      required String nombre,
+      String?         turno,
+      int?            capacidad,
+    }) async {
+      final response = await _dio.post(
+        '/paralelos',
+        data: {
+          'curso_id':  cursoId,
+          'nombre':    nombre,
+          'turno':     turno,
+          'capacidad': capacidad,
+        },
+      );
+      return Paralelo.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `POST /api/paralelos`
+
+    **Example – creating Paralelo A for course 5:**
+
+    ```dart
+    final paralelo = await paraleloRepository.createParalelo(
+      cursoId:   5,
+      nombre:    'A',
+      turno:     'Matutino',
+      capacidad: 35,
+    );
+    print(paralelo.id); // e.g. 12
+    ```
+  </Tab>
+
+  <Tab title="Delete Section">
+    Removes a section by its ID.
+
+    ```dart
+    Future<void> deleteParalelo(int id) async {
+      await _dio.delete('/paralelos/$id');
+    }
+    ```
+
+    **Endpoint:** `DELETE /api/paralelos/:id`
+  </Tab>
+</Tabs>
+
+---
+
+## Schedule Assignment
+
+Each section (`Paralelo`) can be assigned a timetable. Directors navigate to the section's schedule screen to view and manage the weekly time blocks.
+
+**Endpoint:** `GET /api/asignacion-horario` (for a paralelo)
+
+The `HorarioCursoScreen` is reached from the section list. It receives both `cursoId` and `paraleloId` as route parameters:
+
+```dart
+GoRoute(
+  path: ':paraleloId/horario',
+  builder: (_, state) {
+    final cursoId    = int.parse(state.pathParameters['cursoId']!);
+    final paraleloId = int.parse(state.pathParameters['paraleloId']!);
+    return HorarioCursoScreen(cursoId: cursoId, paraleloId: paraleloId);
+  },
+),
+```
+
+---
+
+## App Routes
+
+<CardGroup cols={2}>
+  <Card title="/cursos" icon="layer-group">
+    List all courses for the active period (`CursoListScreen`).
+  </Card>
+  <Card title="/cursos/create" icon="plus">
+    Create a new course (`CursoCreateScreen`).
+  </Card>
+  <Card title="/cursos/:cursoId/paralelos" icon="sitemap">
+    List sections for a specific course (`ParaleloListScreen`).
+  </Card>
+  <Card title="/cursos/:cursoId/paralelos/create" icon="plus">
+    Create a new section within a course (`ParaleloCreateScreen`).
+  </Card>
+  <Card title="/cursos/:cursoId/paralelos/:paraleloId/horario" icon="calendar-days">
+    View and assign the timetable for a section (`HorarioCursoScreen`).
+  </Card>
+</CardGroup>

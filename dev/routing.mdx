@@ -1,0 +1,254 @@
+---
+title: "Routing"
+sidebarTitle: "Routing"
+description: "How Mi Cole uses GoRouter for declarative, URL-based navigation with authentication guards and role-aware shell layouts."
+---
+
+Mi Cole uses [GoRouter](https://pub.dev/packages/go_router) for declarative, URL-based navigation with authentication guards. All routes are defined in `lib/core/router/app_router.dart`. The router is created after `AuthViewModel.loadSession()` resolves, so authentication state is accurate on the very first frame.
+
+## createRouter()
+
+The router factory function accepts `AuthViewModel` as its only dependency. This dependency is used for both the initial location decision and the ongoing redirect guard:
+
+```dart
+GoRouter createRouter(AuthViewModel authViewModel) {
+  _routerInstance = GoRouter(
+    initialLocation: authViewModel.isLoggedIn ? '/home' : '/login',
+    refreshListenable: authViewModel,
+    redirect: (context, state) {
+      final loggedIn  = authViewModel.isLoggedIn;
+      final isAuthPage =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
+
+      if (!loggedIn && !isAuthPage) return '/login';
+      if (loggedIn  && isAuthPage)  return '/home';
+      return null; // no redirect needed
+    },
+    routes: [ ... ],
+  );
+  return _routerInstance;
+}
+```
+
+## Authentication redirect logic
+
+<Steps>
+  <Step title="Initial location">
+    When the app starts, `initialLocation` is set to `/home` if `authViewModel.isLoggedIn` is `true`, otherwise `/login`. This avoids an unnecessary redirect on the first frame.
+  </Step>
+  <Step title="refreshListenable">
+    `refreshListenable: authViewModel` tells GoRouter to re-run the `redirect` callback every time `AuthViewModel` calls `notifyListeners()`. Login, logout, and session restoration all trigger this.
+  </Step>
+  <Step title="redirect callback">
+    The callback enforces two rules:
+    - Any unauthenticated request for a protected path is redirected to `/login`.
+    - Any authenticated request for `/login` or `/register` is redirected to `/home` (prevents going back to the login screen while logged in).
+    - `null` means "allow navigation as requested."
+  </Step>
+</Steps>
+
+## Shell route and MainLayout
+
+All authenticated routes are nested inside a `ShellRoute` that wraps them with `MainLayout`. `MainLayout` renders the top `AppBar`, a responsive sidebar on desktop (≥ 1000 px wide), a `Drawer` on mobile, and a `NavigationBar` bottom tab bar on mobile. The sidebar and bottom nav items vary by role (`super-admin`, `director`, `profesor`, `padre`, `estudiante`).
+
+```dart
+ShellRoute(
+  builder: (context, state, child) => MainLayout(
+    child: child,
+    location: state.matchedLocation, // used to highlight the active nav item
+  ),
+  routes: [
+    // all authenticated GoRoutes go here
+  ],
+),
+```
+
+## Route table
+
+### Authentication (outside ShellRoute)
+
+| Path | Screen | Notes |
+|------|--------|-------|
+| `/login` | `LoginScreen` | Public |
+| `/register` | `RegisterScreen` | Public |
+
+### Inside ShellRoute (authenticated)
+
+#### Home
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/home` | `HomeDashboard` | All |
+
+#### Subjects (Materias)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/materias` | `SubjectListScreen` | Director |
+| `/materias/create` | `SubjectScreen` | Director |
+| `/materias/:id/edit` | `SubjectEditScreen` | Director |
+
+#### Teachers (Profesores)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/profesores` | `ProfesorListScreen` | Director |
+| `/profesores/create` | `ProfesorCreateScreen` | Director |
+| `/profesores/:id/edit` | `ProfesorEditScreen` | Director |
+| `/profesores/:id/materia` | `AsignarMateriaScreen` | Director |
+| `/profesores/:id/horario` | `AsignarHorarioScreen` | Director |
+| `/profesores/:id/ver-horario` | `HorarioProfesorScreen` | Director |
+| `/profesores/:id/materias-asignadas` | `MateriasAsignadasScreen` | Director |
+| `/profesores/:id/materias-asignadas/:asignacionId/agregar-horario` | `AgregarHorarioScreen` | Director |
+
+#### Students (Estudiantes)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/estudiantes` | `EstudianteListScreen` | Director |
+| `/estudiantes/create` | `EstudianteCreateScreen` | Director |
+| `/estudiantes/:id/edit` | `EstudianteEditScreen` | Director |
+
+#### Parents (Padres)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/padres` | `PadreListScreen` | Director |
+| `/padres/create` | `PadreCreateScreen` | Director |
+| `/padres/:id/edit` | `PadreEditScreen` | Director |
+| `/padres/:id/estudiantes` | `PadreAsignarEstudianteScreen` | Director |
+
+#### Parent portal (Mis hijos)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/mis-hijos` | `MisHijosScreen` | Padre |
+| `/mis-hijos/:estudianteId` | `PadreDashboardScreen` | Padre |
+| `/mis-hijos/:estudianteId/agendas` | `PadreAgendaScreen` | Padre |
+| `/mis-hijos/:estudianteId/notas` | `PadreNotaScreen` | Padre |
+| `/mis-hijos/:estudianteId/asistencias` | `PadreAsistenciaScreen` | Padre |
+| `/mis-hijos/:estudianteId/anecdotarios` | `PadreAnecdotarioScreen` | Padre |
+
+#### Courses & sections (Cursos / Paralelos)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/cursos` | `CursoListScreen` | Director |
+| `/cursos/create` | `CursoCreateScreen` | Director |
+| `/cursos/:cursoId/paralelos` | `ParaleloListScreen` | Director |
+| `/cursos/:cursoId/paralelos/create` | `ParaleloCreateScreen` | Director |
+| `/cursos/:cursoId/paralelos/:paraleloId/horario` | `HorarioCursoScreen` | Director |
+
+#### Academic periods (Periodos)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/periodos` | `PeriodoListScreen` | Director |
+| `/periodos/create` | `PeriodoCreateScreen` | Director |
+| `/periodos/:periodoId/periodos-evaluacion` | `PeriodoEvaluacionListScreen` | Director |
+| `/periodos/:periodoId/periodos-evaluacion/create` | `PeriodoEvaluacionCreateScreen` | Director |
+
+#### School settings (Colegio)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/colegio` | `MyTenantScreen` | Director |
+| `/colegio/editar` | `DirectorTenantScreen` | Director |
+
+#### Super-admin: Schools
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/colegios` | `TenantListScreen` | Super-admin |
+| `/colegios/create` | `TenantScreen` | Super-admin |
+| `/colegios/:tenantId/modules` | `ModuleScreen` | Super-admin |
+
+#### Announcements (Circulares)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/circulares` | `CircularListScreen` | All |
+| `/circulares/create` | `CircularCreateScreen` | Director |
+| `/circulares/:id` | `CircularDetailScreen` | All |
+
+#### Enrolments (Inscripciones)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/inscripciones` | `InscripcionListScreen` | Director |
+| `/inscripciones/create` | `InscripcionCreateScreen` | Director |
+
+#### Teacher classes (Mis clases)
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/mis-clases` | `MisClasesScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId` | `ClaseDashboardScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/anecdotarios` | `AnecdotarioListScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/anecdotarios/create` | `AnecdotarioCreateScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/asistencia` | `AsistenciaCreateScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas` | `AgendaListScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas/create` | `AgendaCreateScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas/:agendaId` | `AgendaDetailScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/criterios` | `CriterioScreen` | Profesor |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/libro-calificaciones` | `LibroCalificacionesScreen` | Profesor |
+
+#### Agenda submissions
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/agendas/:agendaId/entregas` | `EntregasListScreen` | Profesor |
+| `/agendas/:agendaId/entregas/:entregaId` | `EntregaDetalleProfesorScreen` | Profesor |
+
+#### Student timetable
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/mi-horario` | `EstudianteHorarioScreen` | Estudiante |
+
+#### Student subjects
+
+| Path | Screen | Role |
+|------|--------|------|
+| `/estudiante/materias` | `EstudianteMateriasScreen` | Estudiante |
+| `/estudiante/materias/:asignacionId` | `EstudianteMateriaDetalleScreen` | Estudiante |
+| `/estudiante/materias/:asignacionId/pendientes` | `EstudianteAgendaScreen` (tipo: tarea) | Estudiante |
+| `/estudiante/materias/:asignacionId/pendientes/:agendaId/entrega` | `EstudianteEntregaTareaScreen` | Estudiante |
+| `/estudiante/materias/:asignacionId/biblioteca` | `EstudianteBibliotecaScreen` | Estudiante |
+| `/estudiante/materias/:asignacionId/examenes` | `EstudianteAgendaScreen` (tipo: examen) | Estudiante |
+
+## redirectToLogin() helper
+
+The `redirectToLogin()` function allows non-widget code (such as the Dio 401 error interceptor) to navigate to `/login` without a `BuildContext`. It works by holding a module-level reference to the router instance:
+
+```dart
+late GoRouter _routerInstance;
+
+// Called by the Dio 401 interceptor
+void redirectToLogin() => _routerInstance.go('/login');
+
+GoRouter createRouter(AuthViewModel authViewModel) {
+  _routerInstance = GoRouter( ... );
+  return _routerInstance;
+}
+```
+
+Because `_routerInstance` is a `late` variable, accessing it before `createRouter()` is called will throw a `LateInitializationError`. In practice this never happens because `createRouter()` is called in `main()` before any HTTP requests are made.
+
+## PathUrlStrategy for clean web URLs
+
+`PathUrlStrategy` is activated at the very start of `main()` before `runApp()`:
+
+```dart
+void main() async {
+  setUrlStrategy(PathUrlStrategy());
+  ...
+}
+```
+
+This replaces the default hash-based URL scheme (`/#/home`) with clean path-based URLs (`/home`), which is required for proper browser history, bookmarking, and server-side routing in web deployments.
+
+<Note>
+  When deploying to a web server or CDN, make sure all routes are configured to serve `index.html` for any path (a "catch-all" or SPA rewrite rule). Without this, direct navigation to a deep link like `/mis-clases` will return a 404 from the server.
+</Note>

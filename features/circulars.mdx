@@ -1,0 +1,178 @@
+---
+title: "Circulars"
+sidebarTitle: "Circulars"
+description: "Reference for the Mi Cole circulares feature: school-wide announcements sent by directors to targeted role groups."
+---
+
+Circulares are school-wide announcements published by directors and delivered to a targeted audience of role groups. Every circular carries a `target` that determines which user roles receive it (e.g. teachers, parents, or everyone), and each recipient has an individual `leido` flag that tracks whether they have opened the circular.
+
+## Route Map
+
+| Route | Screen | Description |
+|---|---|---|
+| `/circulares` | `CircularListScreen` | Inbox of all circulars visible to the authenticated user |
+| `/circulares/create` | `CircularCreateScreen` | Form to compose and publish a new circular (directors only) |
+| `/circulares/:id` | `CircularDetailScreen` | Full content of a single circular |
+
+---
+
+## Circular Model
+
+<ParamField body="id" type="int?">
+  Circular record ID.
+</ParamField>
+
+<ParamField body="titulo" type="String?">
+  Short headline of the circular.
+</ParamField>
+
+<ParamField body="contenido" type="String?">
+  Full body text of the announcement.
+</ParamField>
+
+<ParamField body="target" type="String?">
+  Role group that receives this circular. Accepted values include `"profesores"`, `"padres"`, and `"all"`. See [Target Values](#the-target-field) below.
+</ParamField>
+
+<ParamField body="publishedAt" type="String?">
+  ISO timestamp of when the circular was published. Mapped from `published_at`.
+</ParamField>
+
+<ParamField body="leido" type="bool?">
+  Whether the authenticated user has read this circular. Resolved from the first entry of the `users` pivot array returned by the API.
+</ParamField>
+
+<ParamField body="creadoPor" type="String?">
+  Display name of the director who created the circular. Resolved from `creator.name`.
+</ParamField>
+
+---
+
+## CircularRepository
+
+```dart
+class CircularRepository {
+  final Dio _dio;
+  CircularRepository(this._dio);
+
+  Future<List<Circular>> getCirculares() async {
+    final response = await _dio.get('/circulares');
+    return (response.data as List)
+        .map((e) => Circular.fromJson(e))
+        .toList();
+  }
+
+  Future<Circular> getCircularById(int id) async {
+    final response = await _dio.get('/circulares/$id');
+    return Circular.fromJson(response.data);
+  }
+
+  Future<void> createCircular({
+    required String titulo,
+    required String contenido,
+    required String target,
+  }) async {
+    await _dio.post(
+      '/circulares',
+      data: {
+        'titulo': titulo,
+        'contenido': contenido,
+        'target': target,
+      },
+    );
+  }
+
+  Future<void> marcarLeido(int id) async {
+    await _dio.post('/circulares/$id/leer');
+  }
+
+  Future<void> deleteCircular(int id) async {
+    await _dio.delete('/circulares/$id');
+  }
+}
+```
+
+### Method Reference
+
+| Method | HTTP | Endpoint | Description |
+|---|---|---|---|
+| `getCirculares()` | `GET` | `/circulares` | Fetch all circulars for the authenticated user |
+| `getCircularById(id)` | `GET` | `/circulares/:id` | Fetch a single circular by ID |
+| `createCircular(titulo, contenido, target)` | `POST` | `/circulares` | Publish a new circular |
+| `marcarLeido(id)` | `POST` | `/circulares/:id/leer` | Mark a circular as read |
+| `deleteCircular(id)` | `DELETE` | `/circulares/:id` | Permanently delete a circular |
+
+---
+
+## The `target` Field
+
+The `target` value controls which authenticated users see a circular in their inbox. The following values are recognised by the platform:
+
+| Value | Audience |
+|---|---|
+| `"profesores"` | All teachers enrolled in the tenant |
+| `"padres"` | All parent accounts linked to the tenant |
+| `"all"` | Every user in the tenant regardless of role |
+
+---
+
+## Creating a Circular
+
+Directors can publish a new circular from the `/circulares/create` screen. The repository method accepts the three required fields and performs a `POST` to `/circulares`.
+
+```dart
+await circularRepository.createCircular(
+  titulo: 'Reunión de padres de familia',
+  contenido:
+      'Se convoca a todos los padres de familia a la reunión ordinaria '
+      'del primer quimestre, el viernes 14 de junio a las 18:00 en el '
+      'auditorio principal.',
+  target: 'padres',
+);
+```
+
+The request body sent to the API:
+
+```json
+{
+  "titulo": "Reunión de padres de familia",
+  "contenido": "Se convoca a todos los padres de familia a la reunión ordinaria del primer quimestre, el viernes 14 de junio a las 18:00 en el auditorio principal.",
+  "target": "padres"
+}
+```
+
+---
+
+## Marking a Circular as Read
+
+<Steps>
+  <Step title="User opens the detail screen">
+    The app navigates to `/circulares/:id`, which triggers `CircularRepository.getCircularById(id)` to load the full content.
+  </Step>
+  <Step title="Call marcarLeido">
+    Immediately after the content renders, call `marcarLeido(id)` to record the read event on the server.
+
+    ```dart
+    await circularRepository.marcarLeido(circular.id!);
+    ```
+  </Step>
+  <Step title="Update local state">
+    Refresh the circulars list or update the `leido` flag locally so the unread indicator disappears in the inbox.
+  </Step>
+</Steps>
+
+<Tip>
+  Call `marcarLeido()` as soon as the detail screen mounts — before the user scrolls. This ensures the read status is recorded even if the user navigates away quickly, keeping the inbox badge count accurate.
+</Tip>
+
+---
+
+## Deleting a Circular
+
+Only the director who created a circular (or a super-admin) should be allowed to delete it. The app should confirm the action with the user before calling `deleteCircular`.
+
+```dart
+await circularRepository.deleteCircular(circular.id!);
+```
+
+**Endpoint:** `DELETE /circulares/:id`

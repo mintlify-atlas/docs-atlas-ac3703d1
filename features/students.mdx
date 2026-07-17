@@ -1,0 +1,161 @@
+---
+title: "Students"
+sidebarTitle: "Students"
+description: "Register students, manage their profiles, and enroll them in courses and sections for each academic period."
+---
+
+Students (estudiantes) are the learners registered within a school tenant. Each student receives a unique student code (`codigo_estudiante`) that appears on attendance sheets, grade reports, and timetables. Creating a student record only sets up the identity and login credentials — the student must then be **enrolled** (inscribed) in a course and section for a specific academic period before they appear in classroom tools such as the gradebook and attendance tracker.
+
+## The Estudiante Model
+
+Student identity fields (`name`, `email`) are stored on the linked user account and exposed through the `user` relationship in every API response.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Primary key, auto-assigned |
+| `name` | `string` | Full name (from the linked user account) |
+| `email` | `string` | Login e-mail (from the linked user account) |
+| `codigo_estudiante` | `string` | Unique student code |
+| `roles` | `string[]` | Always includes `"estudiante"` |
+
+```json
+{
+  "id": 34,
+  "codigo_estudiante": "EST-2024-001",
+  "user": {
+    "name": "Carlos Mendoza",
+    "email": "cmendoza@escuela.edu"
+  }
+}
+```
+
+## Repository Methods
+
+The `EstudianteRepository` class handles all HTTP communication with the API. Every method uses the injected `Dio` client and the `/estudiantes` resource path.
+
+<CardGroup cols={2}>
+  <Card title="List Students" icon="list">
+    `GET /api/estudiantes`
+
+    Returns the full list of students registered in the current tenant.
+  </Card>
+  <Card title="Create Student" icon="user-plus">
+    `POST /api/estudiantes`
+
+    Creates a new student and their linked user account in a single request.
+  </Card>
+  <Card title="Get Student" icon="user">
+    `GET /api/estudiantes/:id`
+
+    Fetches a single student record by its numeric ID.
+  </Card>
+  <Card title="Update Student" icon="pen-to-square">
+    `PUT /api/estudiantes/:id`
+
+    Updates the student's profile. Omit `password` to keep the existing one.
+  </Card>
+  <Card title="Delete Student" icon="trash">
+    `DELETE /api/estudiantes/:id`
+
+    Permanently removes the student and their user account from the tenant.
+  </Card>
+</CardGroup>
+
+### createEstudiante
+
+<ParamField body="name" type="string" required>
+  Full name of the student.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Login e-mail address. Must be unique across the tenant.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password for the student's user account. Required only on creation.
+</ParamField>
+
+<ParamField body="codigo_estudiante" type="string" required>
+  Unique student code used in reports, attendance lists, and timetables.
+</ParamField>
+
+```dart
+Future<Estudiante> createEstudiante({
+  required String name,
+  required String email,
+  required String password,
+  required String codigo,
+}) async {
+
+  final response = await _dio.post('/estudiantes', data: {
+    'name': name,
+    'email': email,
+    'password': password,
+    'codigo_estudiante': codigo,
+  });
+  return Estudiante.fromJson(response.data['data']);
+}
+```
+
+### updateEstudiante
+
+The update method only includes `password` in the request body when a non-empty value is provided. If the field is left blank, the existing password is preserved.
+
+```dart
+Future<Estudiante> updateEstudiante({
+  required int id,
+  required String name,
+  required String email,
+  required String codigo,
+  String? password,
+}) async {
+  final Map<String, dynamic> data = {
+    "name": name,
+    "email": email,
+    "codigo_estudiante": codigo,
+  };
+
+  if (password != null && password.isNotEmpty) {
+    data["password"] = password;
+  }
+
+  final response = await _dio.put(
+    "/estudiantes/$id",
+    data: data,
+  );
+
+  return Estudiante.fromJson(response.data["data"]);
+}
+```
+
+<Note>
+  `password` is only required when **creating** a student. When updating, omit the field entirely (or leave it blank in the UI) to keep the student's existing password unchanged.
+</Note>
+
+## Enrollment After Creation
+
+Creating a student record is only the first step. To appear in a teacher's gradebook, attendance list, or class dashboard, the student must be enrolled in a course and section for a specific academic period.
+
+<Steps>
+  <Step title="Create the student">
+    Fill in the creation form at `/estudiantes/create` with the student's name, e-mail, password, and student code. On success, the student is added to the tenant's directory.
+  </Step>
+  <Step title="Enroll the student">
+    Navigate to the **Enrollments** section and create a new inscription linking the student to a course, section (paralelo), and academic period. This is done via `POST /api/inscripciones`.
+  </Step>
+  <Step title="Student appears in classroom tools">
+    Once enrolled, the student appears in attendance lists, gradebooks, the agenda, and the anecdotario for their assigned class.
+  </Step>
+</Steps>
+
+<Tip>
+  A student can be enrolled in only one course-section per academic period. If a student needs to change sections, the existing enrollment must be removed before a new one is created.
+</Tip>
+
+## Application Routes
+
+| Route | Screen | Description |
+|---|---|---|
+| `/estudiantes` | `EstudianteListScreen` | Paginated list of all registered students |
+| `/estudiantes/create` | `EstudianteCreateScreen` | Form to register a new student |
+| `/estudiantes/:id/edit` | `EstudianteEditScreen` | Form to edit an existing student's profile |

@@ -1,0 +1,235 @@
+---
+title: "Agenda & Tasks"
+sidebarTitle: "Agenda & Tasks"
+description: "Create, manage, and review homework assignments, exams, and other agenda items for a class — including file attachments and student submission tracking."
+---
+
+The agenda feature lets teachers post structured items — `tarea` (homework), `examen` (exam), or any custom type — for a specific class assignment. Each agenda item can carry a description, a due date, and one or more attached files. Teachers can also inspect which students have submitted work and review each submission in detail.
+
+## Data Models
+
+### `Agenda`
+
+Represents a single agenda item posted to a class.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier |
+| `titulo` | `String` | Title of the agenda item |
+| `descripcion` | `String?` | Optional detailed description |
+| `tipo` | `String` | Category: `tarea`, `examen`, or other value |
+| `fechaEntrega` | `String?` | ISO-8601 due date (`fecha_entrega` in JSON) |
+| `materia` | `String?` | Subject name (read-only, returned by API) |
+| `profesor` | `String?` | Teacher name (read-only, returned by API) |
+| `curso` | `String?` | Course name (read-only, returned by API) |
+| `paralelo` | `String?` | Section name (read-only, returned by API) |
+| `archivos` | `List<AgendaArchivo>` | Attached files |
+
+### `AgendaArchivo`
+
+Represents a file attached to an agenda item.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier |
+| `nombreOriginal` | `String` | Original filename (`nombre_original` in JSON) |
+| `url` | `String` | Fully-resolved download URL |
+
+### `EntregasResponse`
+
+Top-level wrapper returned when fetching student submissions for an agenda item.
+
+| Field | Type | Description |
+|---|---|---|
+| `tipo` | `String` | Agenda item type (mirrors `Agenda.tipo`) |
+| `titulo` | `String` | Agenda item title |
+| `entregas` | `List<EntregaEstudiante>` | Per-student submission summary |
+
+Each `EntregaEstudiante` inside the list contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `estudianteId` | `int` | Student ID |
+| `nombre` | `String` | Student full name |
+| `codigo` | `String?` | Student code |
+| `estado` | `String` | `entregado` or `pendiente` |
+| `entregaId` | `int?` | Submission ID (present only when `estado == "entregado"`) |
+| `fechaEntrega` | `String?` | Submission timestamp |
+
+### `EntregaDetalleProfesor`
+
+Full submission detail as seen by the teacher, including attached files.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Submission ID |
+| `estudianteId` | `int` | Student ID |
+| `nombreEstudiante` | `String` | Student full name |
+| `codigoEstudiante` | `String?` | Student code |
+| `comentario` | `String?` | Comment left by the student |
+| `estado` | `String` | `entregado` or `pendiente` |
+| `fechaEntrega` | `String?` | Submission timestamp |
+| `archivos` | `List<ArchivoEntrega>` | Files uploaded by the student |
+
+Each `ArchivoEntrega` has `id`, `nombreOriginal`, and `url`.
+
+## API Reference — `AgendaRepository`
+
+### List agenda items
+
+```dart
+Future<List<Agenda>> getAgenda({
+  required int periodoId,
+  required int asignacionId,
+})
+```
+
+**GET** `/periodos/:periodoId/asignaciones/:asignacionId/agenda`
+
+Returns all agenda items for the class within the given period.
+
+---
+
+### Get a single agenda item
+
+```dart
+Future<Agenda> getAgendaDetalle(int id)
+```
+
+**GET** `/agenda/:id`
+
+Returns full detail for one agenda item, including its `archivos` list.
+
+---
+
+### Create an agenda item
+
+```dart
+Future<Agenda> crearAgenda({
+  required int periodoId,
+  required int asignacionId,
+  required String titulo,
+  required String descripcion,
+  required String tipo,
+  String? fechaEntrega,
+})
+```
+
+**POST** `/periodos/:periodoId/asignaciones/:asignacionId/agenda`
+
+Request body:
+
+```json
+{
+  "titulo": "Ejercicios de álgebra",
+  "descripcion": "Resolver los ejercicios del capítulo 3",
+  "tipo": "tarea",
+  "fecha_entrega": "2025-02-28"
+}
+```
+
+Returns the newly created `Agenda` object (inside a `data` wrapper from the server).
+
+---
+
+### Update an agenda item
+
+```dart
+Future<void> actualizarAgenda({
+  required int agendaId,
+  required String titulo,
+  required String descripcion,
+  required String tipo,
+  String? fechaEntrega,
+})
+```
+
+**PUT** `/agenda/:agendaId`
+
+Same body shape as `crearAgenda`.
+
+---
+
+### Delete an agenda item
+
+```dart
+Future<void> eliminarAgenda(int agendaId)
+```
+
+**DELETE** `/agenda/:agendaId`
+
+---
+
+### Upload files to an agenda item
+
+```dart
+Future<void> subirArchivos({
+  required int agendaId,
+  required List<PlatformFile> archivos,
+})
+```
+
+**POST** `/agenda/:agendaId/subir-archivo` — `multipart/form-data`
+
+Each file is sent as a `archivos[]` field. Multiple files can be uploaded in a single request.
+
+<Note>
+  File selection uses the `file_picker` Flutter package. The picked `PlatformFile.bytes` are read directly into memory and sent as `MultipartFile.fromBytes`, so no temporary path on disk is required. This works on both web and mobile targets.
+</Note>
+
+---
+
+### Delete an attached file
+
+```dart
+Future<void> eliminarArchivo(int archivoId)
+```
+
+**DELETE** `/agenda-archivos/:archivoId`
+
+---
+
+### Replace an attached file
+
+```dart
+Future<void> reemplazarArchivo({
+  required int archivoId,
+  required PlatformFile archivo,
+})
+```
+
+**POST** `/agenda-archivos/:archivoId/reemplazar` — `multipart/form-data`
+
+Sends the new file in a single `archivo` field. The server swaps the stored file in place while keeping the same `archivoId`.
+
+---
+
+### Get student submissions for an item
+
+```dart
+Future<EntregasResponse> getEntregas(int agendaId)
+```
+
+**GET** `/agenda/:agendaId/entregas`
+
+Returns an `EntregasResponse` with the full student list and their submission status for that agenda item.
+
+---
+
+### Get full detail of a single submission
+
+```dart
+Future<EntregaDetalleProfesor> getDetalleEntrega(int entregaId)
+```
+
+**GET** `/entregas/:entregaId`
+
+Returns the teacher's detailed view of one student submission, including any files the student uploaded.
+
+## Routes
+
+| Route | Description |
+|---|---|
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas` | List of all agenda items for the class |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas/create` | Form to create a new agenda item |
+| `/agendas/:id/entregas` | Submission tracker for a specific agenda item |

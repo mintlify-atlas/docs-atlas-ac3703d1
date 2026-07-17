@@ -1,47 +1,182 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Quickstart: Get Mi Cole Running in Under 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Clone the repo, configure the Dio base URL, run the Flutter app on Android, iOS, or web, and sign in with your first super-admin account."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you from a fresh clone to a working Mi Cole session on your local machine. The only moving part you must configure before running is the base URL of your backend API — everything else is ready to go out of the box.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure you have the following installed and configured:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+- **Flutter SDK** `^3.7.2` — verify with `flutter --version`
+- **Dart SDK** `^3.7.2` — bundled with Flutter
+- **Git** — to clone the repository
+- **A running Mi Cole backend** — accessible from the device or emulator you are targeting (the default points to `http://192.168.100.206:8000/api`)
+- **Android Studio / Xcode / Chrome** — depending on your target platform
 
-## Get started
+<Tip>
+  Run `flutter doctor` after installing Flutter to confirm your environment is healthy before proceeding.
+</Tip>
+
+## Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the Repository">
+    Clone the Mi Cole Flutter project and move into the project directory.
 
     ```bash
-    npm install your-package
+    git clone https://github.com/andrespaul123/micole-flutter.git
+    cd micole-flutter
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Install Dependencies">
+    Fetch all pub packages declared in `pubspec.yaml`. This installs Dio, Provider, GoRouter, flutter\_secure\_storage, and the rest of the dependency tree.
 
     ```bash
-    your-cli init
+    flutter pub get
     ```
+
+    You should see output ending with `Got dependencies!`. If you see any resolution errors, ensure your Flutter SDK version is `^3.7.2` or later.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Configure the Base URL">
+    Open `lib/core/dio/dio_client.dart` and update the `baseUrl` to point at your backend server. The `DioClient.create()` factory is the single place you need to change.
+
+    ```dart
+    // lib/core/dio/dio_client.dart
+
+    class DioClient {
+      static Dio create() {
+        final dio = Dio(
+          BaseOptions(
+            baseUrl: 'http://192.168.100.206:8000/api', // ← change this
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 15),
+            sendTimeout: const Duration(seconds: 10),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          ),
+        );
+        // ...
+      }
+    }
+    ```
+
+    Replace `http://192.168.100.206:8000/api` with the actual URL of your backend, for example `https://api.myschool.com/api` for a production server or `http://10.0.2.2:8000/api` when hitting a local server from an Android emulator.
+
+    <Warning>
+      Android emulators cannot reach `localhost` or `127.0.0.1` on the host machine. Use `10.0.2.2` instead. iOS simulators can use `localhost` directly.
+    </Warning>
+  </Step>
+
+  <Step title="Run the App">
+    Launch the app on your preferred platform. Choose the target that matches your development setup.
 
     ```bash
-    your-cli start
+    # List available devices / emulators
+    flutter devices
+
+    # Run on a specific device
+    flutter run -d <device-id>
+
+    # Common shorthand targets
+    flutter run -d chrome          # Web
+    flutter run -d android         # Connected Android device or emulator
+    flutter run -d ios             # iOS simulator (macOS only)
     ```
+
+    <Note>
+      Web builds use `PathUrlStrategy` (clean URLs without `#`). Make sure your backend or local dev server is configured to serve the Flutter web build from the root path.
+    </Note>
+
+    **Platform support at a glance:**
+
+    | Platform | Command flag | Notes |
+    |---|---|---|
+    | Android | `-d android` | Emulator or physical device via ADB |
+    | iOS | `-d ios` | Requires macOS + Xcode |
+    | Web (Chrome) | `-d chrome` | Storage via `shared_preferences` |
+    | macOS | `-d macos` | Desktop shell |
+    | Linux | `-d linux` | Desktop shell |
+    | Windows | `-d windows` | Desktop shell |
+  </Step>
+
+  <Step title="Log In">
+    The app opens to the login screen (`/login`). Enter the email and password of an existing user. On success the API returns a JWT token and a `roles` array; the app persists the session and navigates to `/home`.
+
+    **Login endpoint called under the hood:**
+
+    ```dart
+    // lib/feature/login/auth_repository.dart
+
+    Future<Users> login(String email, String password) async {
+      final response = await _dio.post(
+        '/auth/login',
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      return Users.fromJson(response.data);
+    }
+    ```
+
+    **Example request / response:**
+
+    ```json
+    // POST /api/auth/login
+    {
+      "email": "admin@school.com",
+      "password": "secret123"
+    }
+
+    // 200 OK
+    {
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+      "user": {
+        "id": 1,
+        "name": "Carlos Mendoza",
+        "email": "admin@school.com"
+      },
+      "roles": ["super-admin"]
+    }
+    ```
+
+    After a successful login the `AuthViewModel` saves the token, name, email, and first role to secure storage, then `GoRouter` redirects from `/login` to `/home` automatically.
+
+    If you do not have an account yet, tap **¿No tienes cuenta? Regístrate** on the login screen to create a super-admin account, or see the [Auth Overview](/auth/overview) page for the registration endpoint details.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## What Happens at Startup
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+When `main()` runs, Mi Cole executes the following sequence before displaying any UI:
+
+```dart
+// lib/main.dart
+
+void main() async {
+  setUrlStrategy(PathUrlStrategy()); // clean web URLs
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final dio = DioClient.create();                          // singleton Dio instance
+  final authViewModel = AuthViewModel(repository: AuthRepository(dio));
+  await authViewModel.loadSession();                       // restore persisted token
+  final router = createRouter(authViewModel);              // build GoRouter with auth guard
+
+  runApp(
+    MultiProvider(
+      providers: [ /* all feature providers */ ],
+      child: MyApp(router: router),
+    ),
+  );
+}
+```
+
+If a valid session is found in secure storage, `authViewModel.isLoggedIn` is `true` and `GoRouter` opens `/home` directly, skipping the login screen.

@@ -1,72 +1,115 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Mi Cole",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#55c8fa",
+    "light": "#065a9c",
+    "dark": "#ffffff"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
+  "favicon": "https://icons.duckduckgo.com/ip3/docs.flutter.dev.ico",
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "https://media.brand.dev/3404241f-0e96-4983-b0cb-6b1e6b1be223.svg",
+    "dark": "https://media.brand.dev/3404241f-0e96-4983-b0cb-6b1e6b1be223.svg"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/andrespaul123/micole-flutter"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/andrespaul123/micole-flutter"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "auth/overview",
+              "auth/roles"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "School Administration",
+            "pages": [
+              "features/tenant-management",
+              "features/academic-periods",
+              "features/courses-and-sections",
+              "features/subjects",
+              "features/enrollments"
+            ]
+          },
+          {
+            "group": "People Management",
+            "pages": [
+              "features/teachers",
+              "features/students",
+              "features/parents"
+            ]
+          },
+          {
+            "group": "Classroom Tools",
+            "pages": [
+              "features/class-dashboard",
+              "features/agenda-and-tasks",
+              "features/attendance",
+              "features/grade-book",
+              "features/anecdotario"
+            ]
+          },
+          {
+            "group": "Student & Parent Portal",
+            "pages": [
+              "features/student-portal",
+              "features/parent-portal",
+              "features/circulars"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "Core Infrastructure",
+            "pages": [
+              "dev/project-structure",
+              "dev/dio-client",
+              "dev/state-management",
+              "dev/routing"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "api/auth",
+              "api/tenants",
+              "api/academic",
+              "api/classroom",
+              "api/users"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

@@ -1,0 +1,155 @@
+---
+title: "Authentication API — Login, Register & Logout"
+sidebarTitle: "Auth"
+description: "Authenticate users, register new super-admin accounts, and invalidate sessions. All other Mi Cole API endpoints require the Bearer token returned by login."
+---
+
+The authentication endpoints let you obtain a session token, create a new super-admin account, and revoke a token when the session is over. Mi Cole uses a stateless Bearer token strategy — once you have the token you pass it in the `Authorization` header on every subsequent request. The base URL for all API calls is `http://<your-server>/api`, as configured in `DioClient`.
+
+<Note>
+  Store the `token` returned by login in secure storage and attach it to all subsequent requests as `Authorization: Bearer <token>`. If the server responds with `401 Unauthorized` at any point, the token has expired — the app will clear local credentials and redirect to the login screen automatically.
+</Note>
+
+---
+
+## POST /api/auth/login
+
+Validate credentials and receive a session token together with the authenticated user's profile.
+
+```bash
+curl -X POST http://<your-server>/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "director@colegio.edu",
+    "password": "secret123"
+  }'
+```
+
+**Request body**
+
+<ParamField body="email" type="string" required>
+  The registered e-mail address of the user.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's plain-text password (sent over HTTPS).
+</ParamField>
+
+**Response — `200 OK`**
+
+```json
+{
+  "token": "1|abc123...",
+  "user": {
+    "id": 1,
+    "name": "Ana Pérez",
+    "email": "director@colegio.edu"
+  },
+  "roles": ["super-admin"]
+}
+```
+
+<ResponseField name="token" type="string">
+  Bearer token to include in the `Authorization` header for all protected requests.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user object.
+
+  <Expandable title="user fields">
+    <ResponseField name="user.id" type="integer">
+      Unique identifier of the user.
+    </ResponseField>
+
+    <ResponseField name="user.name" type="string">
+      Full display name of the user.
+    </ResponseField>
+
+    <ResponseField name="user.email" type="string">
+      E-mail address of the user.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="roles" type="string[]">
+  List of roles assigned to the user (e.g. `super-admin`, `director`, `profesor`, `estudiante`, `padre`).
+</ResponseField>
+
+---
+
+## POST /api/auth/register
+
+Create a new super-admin account. This endpoint is typically used during initial platform setup and does not require an existing session.
+
+```bash
+curl -X POST http://<your-server>/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Carlos Mendoza",
+    "email": "admin@micole.io",
+    "password": "strongpassword"
+  }'
+```
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  Full name of the new user.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  E-mail address used to log in. Must be unique across the platform.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Plain-text password. Enforce a minimum length on the client before sending.
+</ParamField>
+
+<ParamField body="role" type="string">
+  Role to assign to the user. Defaults to `super-admin` if omitted.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the same `Users` object shape as the login response (see above), including `token`, `user`, and `roles`.
+
+---
+
+## POST /api/auth/logout
+
+Revoke the current session token. The `Authorization` header is required; no request body is needed.
+
+```bash
+curl -X POST http://<your-server>/api/auth/logout \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns an empty body or a simple confirmation message. After this call the token is invalid and cannot be reused.
+
+---
+
+## Users Model
+
+The `Users` object is returned by both `/auth/login` and `/auth/register`.
+
+<ResponseField name="id" type="integer">
+  Numeric primary-key of the user record.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Full display name of the user.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Unique e-mail address of the user.
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  Bearer token to use in subsequent API calls.
+</ResponseField>
+
+<ResponseField name="roles" type="string[]">
+  Array of role strings assigned to this user. Common values: `super-admin`, `director`, `profesor`, `estudiante`, `padre`.
+</ResponseField>

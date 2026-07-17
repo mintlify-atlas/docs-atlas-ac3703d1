@@ -1,0 +1,279 @@
+---
+title: "Enrollments"
+sidebarTitle: "Enrollments"
+description: "Register students into a course and section for a specific academic period using Mi Cole's enrollment system."
+---
+
+Enrollments (`Inscripcion`) are the records that formally place a student into a specific course and section for a given academic period. Each enrollment creates a precise four-way relationship: **one student** + **one academic period** + **one course** + **one section**. This record is the foundation for attendance tracking, grade books, agenda assignments, and parent access — every feature that involves a student in a classroom depends on an enrollment existing first.
+
+<Note>
+  An enrollment is always scoped to an active academic period. Before enrolling students, ensure the target academic period has been created and activated. See [Academic Periods](/features/academic-periods) for details.
+</Note>
+
+---
+
+## Inscripcion Model
+
+```dart
+class Inscripcion {
+  final int?          id;
+  final int?          estudianteId;
+  final int?          cursoId;
+  final int?          paraleloId;
+  final int?          academicPeriodId;
+  final Estudiante?   estudiante;   // expanded when included
+  final Curso?        curso;        // expanded when included
+  final Paralelo?     paralelo;     // expanded when included
+  final AcademicPeriod? periodo;   // expanded when included
+
+  Inscripcion({
+    this.id,
+    this.estudianteId,
+    this.cursoId,
+    this.paraleloId,
+    this.academicPeriodId,
+    this.estudiante,
+    this.curso,
+    this.paralelo,
+    this.periodo,
+  });
+
+  factory Inscripcion.fromJson(Map<String, dynamic> json) {
+    return Inscripcion(
+      id:               json['id'],
+      estudianteId:     json['estudiante_id'],
+      cursoId:          json['curso_id'],
+      paraleloId:       json['paralelo_id'],
+      academicPeriodId: json['academic_period_id'],
+      estudiante: json['estudiante'] != null
+          ? Estudiante.fromJson(json['estudiante']) : null,
+      curso:    json['curso']    != null ? Curso.fromJson(json['curso'])       : null,
+      paralelo: json['paralelo'] != null ? Paralelo.fromJson(json['paralelo']) : null,
+      periodo:  json['periodo']  != null ? AcademicPeriod.fromJson(json['periodo']) : null,
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for this enrollment record.
+</ParamField>
+
+<ParamField path="estudianteId" type="int" required>
+  Foreign key referencing the enrolled `Estudiante`.
+</ParamField>
+
+<ParamField path="cursoId" type="int" required>
+  Foreign key referencing the `Curso` (grade level) the student is enrolled in.
+</ParamField>
+
+<ParamField path="paraleloId" type="int" required>
+  Foreign key referencing the `Paralelo` (section) the student belongs to.
+</ParamField>
+
+<ParamField path="academicPeriodId" type="int" required>
+  Foreign key referencing the `AcademicPeriod` this enrollment applies to.
+</ParamField>
+
+<ParamField path="estudiante" type="Estudiante">
+  Expanded student object included when the API returns full relationship data.
+</ParamField>
+
+<ParamField path="curso" type="Curso">
+  Expanded course object included when the API returns full relationship data.
+</ParamField>
+
+<ParamField path="paralelo" type="Paralelo">
+  Expanded section object included when the API returns full relationship data.
+</ParamField>
+
+<ParamField path="periodo" type="AcademicPeriod">
+  Expanded academic period object included when the API returns full relationship data.
+</ParamField>
+
+---
+
+## InscripcionRepository
+
+```dart
+class InscripcionRepository {
+  final Dio _dio;
+  InscripcionRepository(this._dio);
+}
+```
+
+<Tabs>
+  <Tab title="List Enrollments">
+    Returns all enrollment records for a given academic period. The response may be a bare list or wrapped in a `data` key — the repository handles both shapes.
+
+    ```dart
+    Future<List<Inscripcion>> getInscripciones(int periodoId) async {
+      final response = await _dio.get(
+        '/periodos/$periodoId/inscripciones',
+      );
+      final List data = response.data is List
+          ? response.data
+          : response.data['data'] ?? [];
+      return data.map((e) => Inscripcion.fromJson(e)).toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/periodos/:periodoId/inscripciones`
+
+    ```json
+    [
+      {
+        "id": 1,
+        "estudiante_id": 10,
+        "curso_id": 3,
+        "paralelo_id": 5,
+        "academic_period_id": 2,
+        "estudiante": { "id": 10, "nombre": "Carlos Vega" },
+        "curso":      { "id": 3,  "nombre": "Primero de Bachillerato" },
+        "paralelo":   { "id": 5,  "nombre": "A" }
+      }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Create Enrollment">
+    Enrolls a student in a course and section for the specified period.
+
+    ```dart
+    Future<Inscripcion> createInscripcion({
+      required int periodoId,
+      required int estudianteId,
+      required int cursoId,
+      required int paraleloId,
+    }) async {
+      final response = await _dio.post(
+        '/periodos/$periodoId/inscripciones',
+        data: {
+          'estudiante_id': estudianteId,
+          'curso_id':      cursoId,
+          'paralelo_id':   paraleloId,
+        },
+      );
+      return Inscripcion.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `POST /api/periodos/:periodoId/inscripciones`
+
+    ```json
+    // Request body
+    {
+      "estudiante_id": 10,
+      "curso_id":       3,
+      "paralelo_id":    5
+    }
+    ```
+  </Tab>
+
+  <Tab title="Delete Enrollment">
+    Removes an enrollment. The student will no longer appear in class lists, attendance records, or grade books for this period.
+
+    ```dart
+    Future<void> deleteInscripcion(int periodoId, int id) async {
+      await _dio.delete(
+        '/periodos/$periodoId/inscripciones/$id',
+      );
+    }
+    ```
+
+    **Endpoint:** `DELETE /api/periodos/:periodoId/inscripciones/:id`
+
+    <Warning>
+      Deleting an enrollment also removes the student from class-level queries for that period. Attendance and grade records scoped to this enrollment may become orphaned. Proceed with caution.
+    </Warning>
+  </Tab>
+</Tabs>
+
+---
+
+## Students by Class
+
+Teachers and directors can query the list of students enrolled in a specific class (period + course + section combination) using a dedicated endpoint. This powers attendance screens, grade books, and class dashboards.
+
+**Endpoint:** `GET /api/periodos/:periodoId/cursos/:cursoId/paralelos/:paraleloId/estudiantes`
+
+```dart
+Future<List<EstudianteClase>> getEstudiantesPorClase({
+  required int periodoId,
+  required int cursoId,
+  required int paraleloId,
+}) async {
+  final response = await _dio.get(
+    '/periodos/$periodoId/cursos/$cursoId/paralelos/$paraleloId/estudiantes',
+  );
+  final List data = response.data['estudiantes'] ?? [];
+  return data.map((e) => EstudianteClase.fromJson(e)).toList();
+}
+```
+
+### EstudianteClase Model
+
+`EstudianteClase` is a lightweight projection used when listing students within a classroom context. It contains only the fields needed for display and identification.
+
+```dart
+class EstudianteClase {
+  final int?    id;
+  final String? nombre;
+  final String? email;
+
+  EstudianteClase({this.id, this.nombre, this.email});
+
+  factory EstudianteClase.fromJson(Map<String, dynamic> json) {
+    return EstudianteClase(
+      id:     json['id'],
+      nombre: json['nombre'],
+      email:  json['email'],
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Student identifier, used to scope attendance, grades, and other per-student operations.
+</ParamField>
+
+<ParamField path="nombre" type="String" required>
+  Full display name of the student.
+</ParamField>
+
+<ParamField path="email" type="String">
+  Student's email address.
+</ParamField>
+
+---
+
+## Enrollment Relationship
+
+Each enrollment record forms a precise intersection of four entities:
+
+```
+AcademicPeriod (e.g. "Año 2024-2025")
+       │
+       ├── Curso (e.g. "Primero de Bachillerato")
+       │        │
+       │        └── Paralelo (e.g. "Paralelo A")
+       │
+       └── Estudiante (e.g. "Carlos Vega")
+                ↑
+          Inscripcion (id: 1)
+```
+
+This means a student can be enrolled in different courses or sections across different academic periods, but **cannot be enrolled twice** in the same period + course + section combination.
+
+---
+
+## App Routes
+
+<CardGroup cols={2}>
+  <Card title="/inscripciones" icon="clipboard-list">
+    List all enrollments for the active period (`InscripcionListScreen`).
+  </Card>
+  <Card title="/inscripciones/create" icon="plus">
+    Create a new enrollment by selecting a student, course, and section (`InscripcionCreateScreen`).
+  </Card>
+</CardGroup>

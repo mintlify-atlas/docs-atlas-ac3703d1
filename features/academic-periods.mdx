@@ -1,0 +1,302 @@
+---
+title: "Academic Periods"
+sidebarTitle: "Academic Periods"
+description: "Define and manage the school year through academic periods and their nested evaluation periods."
+---
+
+Academic periods represent the school year (or semester) during which instruction takes place. Each school can have multiple academic periods, but only one is **active** at any given time. Nested inside every academic period are **evaluation periods** (`PeriodoEvaluacion`)—discrete grading windows such as trimestres or quimestres—which drive grade book entries, assessments, and report cards throughout the year.
+
+<Tip>
+  The active academic period is loaded automatically when the app starts via `AcademicPeriodViewModel.loadPeriodoActivo()`. All views that depend on the current period (courses, enrollments, grade books) read from `periodoActivo` without requiring the user to select it manually.
+</Tip>
+
+---
+
+## AcademicPeriod Model
+
+```dart
+class AcademicPeriod {
+  final int?    id;
+  final String? nombre;
+  final String? fechaInicio;
+  final String? fechaFin;
+  final bool?   activo;
+
+  AcademicPeriod({
+    this.id,
+    this.nombre,
+    this.fechaInicio,
+    this.fechaFin,
+    this.activo,
+  });
+
+  factory AcademicPeriod.fromJson(Map<String, dynamic> json) {
+    return AcademicPeriod(
+      id:          json['id'],
+      nombre:      json['nombre'],
+      fechaInicio: json['fecha_inicio'],
+      fechaFin:    json['fecha_fin'],
+      activo:      json['activo'] == 1 || json['activo'] == true,
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for the academic period.
+</ParamField>
+
+<ParamField path="nombre" type="String" required>
+  Human-readable name, e.g. `"Año lectivo 2024-2025"`.
+</ParamField>
+
+<ParamField path="fechaInicio" type="String" required>
+  Start date of the period in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField path="fechaFin" type="String" required>
+  End date of the period in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField path="activo" type="bool">
+  Whether this is the currently active period. Parsed from either an integer `1`/`0` or a boolean `true`/`false` returned by the API.
+</ParamField>
+
+---
+
+## CRUD Operations
+
+All period operations are handled by `AcademicPeriodRepository`.
+
+```dart
+class AcademicPeriodRepository {
+  final Dio _dio;
+  AcademicPeriodRepository(this._dio);
+}
+```
+
+<Tabs>
+  <Tab title="List Periods">
+    Returns all academic periods for the current tenant.
+
+    ```dart
+    Future<List<AcademicPeriod>> getPeriodos() async {
+      final response = await _dio.get('/periodos');
+      return (response.data as List)
+          .map((e) => AcademicPeriod.fromJson(e))
+          .toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/periodos`
+
+    ```json
+    [
+      { "id": 1, "nombre": "Año lectivo 2023-2024", "fecha_inicio": "2023-09-01", "fecha_fin": "2024-07-15", "activo": 0 },
+      { "id": 2, "nombre": "Año lectivo 2024-2025", "fecha_inicio": "2024-09-01", "fecha_fin": "2025-07-15", "activo": 1 }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Get Active Period">
+    Fetches the single period currently marked active. Called on app startup by `AcademicPeriodViewModel.loadPeriodoActivo()`.
+
+    ```dart
+    Future<AcademicPeriod?> getPeriodoActivo() async {
+      final response = await _dio.get('/periodos/activo');
+      return AcademicPeriod.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `GET /api/periodos/activo`
+  </Tab>
+
+  <Tab title="Create Period">
+    Creates a new academic period. Pass `activo: true` to immediately activate it (deactivating any previously active period on the server).
+
+    ```dart
+    Future<AcademicPeriod> createPeriodo({
+      required String nombre,
+      required String fechaInicio,
+      required String fechaFin,
+      bool activo = false,
+    }) async {
+      final response = await _dio.post(
+        '/periodos',
+        data: {
+          'nombre':       nombre,
+          'fecha_inicio': fechaInicio,
+          'fecha_fin':    fechaFin,
+          'activo':       activo,
+        },
+      );
+      return AcademicPeriod.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `POST /api/periodos`
+  </Tab>
+
+  <Tab title="Delete Period">
+    Removes an academic period. The ViewModel also clears `periodoActivo` locally if the deleted period was the active one.
+
+    ```dart
+    Future<void> deletePeriodo(int id) async {
+      await _dio.delete('/periodos/$id');
+    }
+    ```
+
+    **Endpoint:** `DELETE /api/periodos/:id`
+
+    <Warning>
+      Deleting an active period will unset the active period for the whole school. Ensure a replacement period is activated before deletion.
+    </Warning>
+  </Tab>
+</Tabs>
+
+---
+
+## Activating a Period
+
+Only one academic period can be active at a time. Activation is a dedicated PATCH call—it does not go through the create or update endpoint.
+
+```dart
+Future<void> activarPeriodo(int id) async {
+  await _dio.patch('/periodos/$id/activar');
+}
+```
+
+**Endpoint:** `PATCH /api/periodos/:id/activar`
+
+In `AcademicPeriodViewModel`, calling `activarPeriodo(id)` patches the server, updates the local `periodoActivo` reference, and then refreshes the full list via `loadPeriodos()` so the UI reflects the new state immediately:
+
+```dart
+Future<bool> activarPeriodo(int id) async {
+  await repository.activarPeriodo(id);
+  // Update local reference
+  for (final p in periodos) {
+    if (p.id == id) {
+      periodoActivo = AcademicPeriod(
+        id: p.id, nombre: p.nombre,
+        fechaInicio: p.fechaInicio,
+        fechaFin: p.fechaFin,
+        activo: true,
+      );
+    }
+  }
+  await loadPeriodos(); // refresh full list
+  return true;
+}
+```
+
+---
+
+## Evaluation Periods
+
+Evaluation periods (`PeriodoEvaluacion`) are grading windows nested inside an academic period. Typical examples include *Primer Quimestre*, *Segundo Quimestre*, or *Trimestre 1–3*.
+
+### PeriodoEvaluacion Model
+
+```dart
+class PeriodoEvaluacion {
+  final int?    id;
+  final int?    academicPeriodId;
+  final String? nombre;
+  final int?    orden;
+  final int?    tenantId;
+
+  PeriodoEvaluacion({
+    this.id,
+    this.academicPeriodId,
+    this.nombre,
+    this.orden,
+    this.tenantId,
+  });
+
+  factory PeriodoEvaluacion.fromJson(Map<String, dynamic> json) {
+    return PeriodoEvaluacion(
+      id:               json['id'],
+      academicPeriodId: json['academic_period_id'],
+      nombre:           json['nombre'],
+      orden:            json['orden'],
+      tenantId:         json['tenant_id'],
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for this evaluation period.
+</ParamField>
+
+<ParamField path="academicPeriodId" type="int" required>
+  Foreign key linking to the parent `AcademicPeriod`.
+</ParamField>
+
+<ParamField path="nombre" type="String" required>
+  Display name, e.g. `"Primer Quimestre"`.
+</ParamField>
+
+<ParamField path="orden" type="int" required>
+  Numeric ordering position within the academic period (1, 2, 3 …).
+</ParamField>
+
+<ParamField path="tenantId" type="int">
+  Tenant scoping identifier, populated server-side.
+</ParamField>
+
+### PeriodoEvaluacionRepository
+
+```dart
+class PeriodoEvaluacionRepository {
+  final Dio _dio;
+  PeriodoEvaluacionRepository(this._dio);
+
+  // List evaluation periods for a given academic period
+  Future<List<PeriodoEvaluacion>> getPeriodosEvaluacion(int periodoId) async {
+    final response = await _dio.get(
+      '/periodos/$periodoId/periodos-evaluacion',
+    );
+    return (response.data as List)
+        .map((e) => PeriodoEvaluacion.fromJson(e))
+        .toList();
+  }
+
+  // Create a new evaluation period
+  Future<PeriodoEvaluacion> createPeriodoEvaluacion({
+    required int    periodoId,
+    required String nombre,
+    required int    orden,
+  }) async {
+    final response = await _dio.post(
+      '/periodos/$periodoId/periodos-evaluacion',
+      data: {'nombre': nombre, 'orden': orden},
+    );
+    return PeriodoEvaluacion.fromJson(response.data);
+  }
+}
+```
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `getPeriodosEvaluacion(periodoId)` | `GET /api/periodos/:id/periodos-evaluacion` | List all evaluation periods for an academic period |
+| `createPeriodoEvaluacion(...)` | `POST /api/periodos/:id/periodos-evaluacion` | Create a new evaluation period |
+
+---
+
+## App Routes
+
+<CardGroup cols={2}>
+  <Card title="/periodos" icon="calendar">
+    List all academic periods (`PeriodoListScreen`).
+  </Card>
+  <Card title="/periodos/create" icon="plus">
+    Create a new academic period (`PeriodoCreateScreen`).
+  </Card>
+  <Card title="/periodos/:periodoId/periodos-evaluacion" icon="list-ol">
+    List evaluation periods for a specific academic period (`PeriodoEvaluacionListScreen`).
+  </Card>
+  <Card title="/periodos/:periodoId/periodos-evaluacion/create" icon="plus">
+    Create an evaluation period nested under an academic period (`PeriodoEvaluacionCreateScreen`).
+  </Card>
+</CardGroup>

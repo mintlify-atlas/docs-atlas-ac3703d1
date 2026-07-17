@@ -1,0 +1,297 @@
+---
+title: "Parent Portal"
+sidebarTitle: "Parent Portal"
+description: "Complete reference for the Mi Cole parent-facing features: linked children, agenda, grades, attendance, and anecdotal records."
+---
+
+Parents can monitor each of their linked children's academic performance from a single dashboard. Once a director associates a parent account with one or more students, the parent gains access to that child's agenda, grade report, attendance record, and anecdotal notes — all in read-only view.
+
+<Note>
+  Parents must be linked to students by a director before they can see any child data. Use the director panel at `/padres/:id/estudiantes` to create the association and set the `parentesco` (relationship) field.
+</Note>
+
+## Route Map
+
+| Route | Screen | Description |
+|---|---|---|
+| `/mis-hijos` | `MisHijosScreen` | List of all children linked to the authenticated parent |
+| `/mis-hijos/:estudianteId` | `PadreDashboardScreen` | Per-child hub screen |
+| `/mis-hijos/:estudianteId/agendas` | `PadreAgendaScreen` | Child's tasks and exams |
+| `/mis-hijos/:estudianteId/notas` | `PadreNotaScreen` | Child's grade report by period |
+| `/mis-hijos/:estudianteId/asistencias` | `PadreAsistenciaScreen` | Child's absences by subject |
+| `/mis-hijos/:estudianteId/anecdotarios` | `PadreAnecdotarioScreen` | Teacher anecdotal notes about the child |
+
+---
+
+## My Children — MisHijosScreen
+
+**Route:** `/mis-hijos`
+
+The entry point for the parent portal. Calls `PadreFamiliaRepository.getMisHijos()` to retrieve every student linked to the logged-in parent account.
+
+```dart
+Future<List<PadreHijo>> getMisHijos() async {
+  final response = await _dio.get('/padre/mis-hijos');
+  final List lista = response.data['estudiantes'];
+  return lista.map((e) => PadreHijo.fromJson(e)).toList();
+}
+```
+
+**Endpoint:** `GET /padre/mis-hijos`
+
+### PadreHijo Model
+
+<ParamField body="id" type="int" required>
+  Student ID used throughout all child sub-routes as `:estudianteId`.
+</ParamField>
+
+<ParamField body="nombre" type="String" required>
+  Student's full name.
+</ParamField>
+
+<ParamField body="codigoEstudiante" type="String" required>
+  Unique enrolment code. Mapped from `codigo_estudiante`.
+</ParamField>
+
+<ParamField body="parentesco" type="String" required>
+  Relationship label (e.g. `"Padre"`, `"Madre"`, `"Tutor"`).
+</ParamField>
+
+---
+
+## Child Dashboard — PadreDashboardScreen
+
+**Route:** `/mis-hijos/:estudianteId`
+
+A hub screen that presents the four monitoring sections for the selected child. Tapping any card navigates to the corresponding sub-route.
+
+<CardGroup cols={2}>
+  <Card title="Agenda" icon="calendar-days" href="#agenda">
+    Homework tasks and exams assigned to the child.
+  </Card>
+  <Card title="Grades" icon="chart-bar" href="#grades">
+    Period-by-period grade report with per-subject averages.
+  </Card>
+  <Card title="Attendance" icon="clipboard-check" href="#attendance">
+    Absence records grouped by subject with a total fault count.
+  </Card>
+  <Card title="Anecdotario" icon="book-open" href="#anecdotario">
+    Behavioural and academic notes logged by teachers.
+  </Card>
+</CardGroup>
+
+---
+
+## Agenda
+
+**Route:** `/mis-hijos/:estudianteId/agendas`
+
+Shows all agenda items (tasks and exams) assigned to the child across all subjects.
+
+### PadreAgendaRepository
+
+```dart
+class PadreAgendaRepository {
+  final Dio _dio;
+  PadreAgendaRepository(this._dio);
+
+  Future<List<PadreAgenda>> getAgendasHijo(int estudianteId) async {
+    final response = await _dio.get('/padre/mis-hijos/$estudianteId/agendas');
+    final List agendas = response.data['agendas'];
+    return agendas.map((e) => PadreAgenda.fromJson(e)).toList();
+  }
+}
+```
+
+**Endpoint:** `GET /padre/mis-hijos/:estudianteId/agendas`
+
+### PadreAgenda Model
+
+<ParamField body="id" type="int" required>
+  Agenda entry ID.
+</ParamField>
+
+<ParamField body="titulo" type="String" required>
+  Title of the task or exam.
+</ParamField>
+
+<ParamField body="descripcion" type="String" required>
+  Full description or instructions.
+</ParamField>
+
+<ParamField body="tipo" type="String" required>
+  Entry type: `"tarea"` or `"examen"`.
+</ParamField>
+
+<ParamField body="fechaEntrega" type="String?">
+  Due date in ISO format. Mapped from `fecha_entrega`.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Subject name the entry belongs to.
+</ParamField>
+
+<ParamField body="archivos" type="List<AgendaArchivo>">
+  Reference files attached by the teacher. Each item has `id`, `nombreOriginal`, and `url`.
+</ParamField>
+
+---
+
+## Grades
+
+**Route:** `/mis-hijos/:estudianteId/notas`
+
+Displays the child's academic report card organised by evaluation period. Each period shows a per-subject average and an overall `promedioGeneral`.
+
+### PadreNotaRepository
+
+```dart
+class PadreNotaRepository {
+  final Dio _dio;
+  PadreNotaRepository(this._dio);
+
+  Future<List<PeriodoNota>> getBoleta(int estudianteId) async {
+    final response = await _dio.get('/padre/mis-hijos/$estudianteId/notas');
+    final List periodos = response.data['periodos'];
+    return periodos.map((e) => PeriodoNota.fromJson(e)).toList();
+  }
+}
+```
+
+**Endpoint:** `GET /padre/mis-hijos/:estudianteId/notas`
+
+### PeriodoNota Model
+
+<ParamField body="periodo" type="String" required>
+  Name of the evaluation period (e.g. `"Quimestre 1"`).
+</ParamField>
+
+<ParamField body="materias" type="List<MateriaNota>" required>
+  Per-subject grade summaries for this period.
+</ParamField>
+
+<ParamField body="promedioGeneral" type="double" required>
+  Overall average across all subjects for this period. Mapped from `promedio_general`.
+</ParamField>
+
+### MateriaNota Model
+
+<ParamField body="materia" type="String" required>
+  Subject name.
+</ParamField>
+
+<ParamField body="promedio" type="double" required>
+  Average grade for this subject in the period.
+</ParamField>
+
+---
+
+## Attendance
+
+**Route:** `/mis-hijos/:estudianteId/asistencias`
+
+Returns the child's absence (falta) records. Results can optionally be filtered by subject name.
+
+### PadreAsistenciaRepository
+
+```dart
+class PadreAsistenciaRepository {
+  final Dio _dio;
+  PadreAsistenciaRepository(this._dio);
+
+  Future<PadreAsistenciaResponse> getAsistenciasHijo(
+    int estudianteId, {
+    String? materia,
+  }) async {
+    final response = await _dio.get(
+      '/padre/hijos/$estudianteId/asistencias',
+      queryParameters: {if (materia != null) 'materia': materia},
+    );
+    return PadreAsistenciaResponse.fromJson(response.data);
+  }
+}
+```
+
+**Endpoint:** `GET /padre/hijos/:estudianteId/asistencias[?materia=:name]`
+
+### PadreAsistenciaResponse Model
+
+<ParamField body="materias" type="List<String>" required>
+  Full list of subject names enrolled by the student — useful for populating a filter dropdown.
+</ParamField>
+
+<ParamField body="totalFaltas" type="int" required>
+  Total number of absences across all subjects. Mapped from `total_faltas`.
+</ParamField>
+
+<ParamField body="faltas" type="List<PadreAsistencia>" required>
+  Individual absence records.
+</ParamField>
+
+### PadreAsistencia Model
+
+<ParamField body="fecha" type="String" required>
+  Date of the absence in ISO format.
+</ParamField>
+
+<ParamField body="materia" type="String" required>
+  Subject during which the absence was recorded.
+</ParamField>
+
+---
+
+## Anecdotario
+
+**Route:** `/mis-hijos/:estudianteId/anecdotarios`
+
+Shows anecdotal notes logged by teachers about the child. These notes can describe positive achievements, behavioural incidents, or any other relevant observation.
+
+### PadreAnecdotarioRepository
+
+```dart
+class PadreAnecdotarioRepository {
+  final Dio _dio;
+  PadreAnecdotarioRepository(this._dio);
+
+  Future<List<PadreAnecdotario>> getAnecdotarios(int estudianteId) async {
+    final response = await _dio.get(
+      '/padre/mis-hijos/$estudianteId/anecdotarios',
+    );
+    return (response.data as List)
+        .map((e) => PadreAnecdotario.fromJson(e))
+        .toList();
+  }
+}
+```
+
+**Endpoint:** `GET /padre/mis-hijos/:estudianteId/anecdotarios`
+
+### PadreAnecdotario Model
+
+<ParamField body="id" type="int?">
+  Record ID.
+</ParamField>
+
+<ParamField body="tipo" type="String?">
+  Category of the note (e.g. `"positivo"`, `"negativo"`).
+</ParamField>
+
+<ParamField body="titulo" type="String?">
+  Short title for the note.
+</ParamField>
+
+<ParamField body="descripcion" type="String?">
+  Full text of the anecdotal record.
+</ParamField>
+
+<ParamField body="fecha" type="String?">
+  Date the note was logged.
+</ParamField>
+
+<ParamField body="profesor" type="String?">
+  Name of the teacher who wrote the note. Resolved from the nested `profesor.user.name` path.
+</ParamField>
+
+<ParamField body="materia" type="String?">
+  Subject the note relates to. Resolved from `asignacion_docente.subject.name`.
+</ParamField>

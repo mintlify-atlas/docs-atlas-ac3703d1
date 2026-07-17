@@ -1,0 +1,217 @@
+---
+title: "Mi Cole Application Architecture, Patterns, and Structure"
+sidebarTitle: "Architecture"
+description: "A deep dive into Mi Cole's feature-based folder layout, Provider state management, GoRouter navigation, and the core modules that power every screen."
+---
+
+Mi Cole is organised around a strict **feature-first** architecture: every functional area of the app lives in its own self-contained directory under `lib/feature/`, carrying its own model, repository, view-model, and screens. Shared infrastructure — the HTTP client, secure storage, router, layout shell, and utility helpers — lives under `lib/core/`. This separation makes it straightforward to add, remove, or test a feature without touching the rest of the app.
+
+## Directory Structure
+
+```text
+lib/
+├── main.dart                          # App entry point, MultiProvider setup
+│
+├── core/
+│   ├── dio/
+│   │   └── dio_client.dart            # Dio singleton + auth interceptor
+│   ├── router/
+│   │   └── app_router.dart            # GoRouter definition + redirectToLogin()
+│   ├── storage/
+│   │   └── secure_storage.dart        # JWT session persistence (mobile + web)
+│   ├── layout/
+│   │   ├── main_layout.dart           # Shell: AppBar + BottomNavigationBar
+│   │   └── home_dashboard.dart        # Role-aware home screen
+│   ├── utils/
+│   │   └── api_error_handler.dart     # DioException → human-readable message
+│   └── widgest/                       # Shared UI widgets (AuthCard, AuthInput, …)
+│
+└── feature/
+    ├── login/                         # Authentication
+    │   ├── users.dart                 # Users model (id, name, email, token, roles)
+    │   ├── auth_repository.dart       # POST /auth/login, /auth/register, /auth/logout
+    │   ├── auth_viewmodel.dart        # AuthViewModel (ChangeNotifier)
+    │   └── screens/
+    │       ├── login_screen.dart
+    │       └── register_screen.dart
+    │
+    ├── tenant/                        # Super-admin: school management
+    ├── subject/                       # Director: subjects (materias)
+    ├── curso/                         # Director: grade levels (cursos)
+    ├── paralelo/                      # Director: class sections (paralelos)
+    ├── periodo_academico/             # Director: academic periods
+    ├── periodo_evaluacion/            # Director: evaluation periods
+    ├── asignacion_horario/            # Director: teacher–subject–schedule mapping
+    ├── inscripcion/                   # Director: student enrollment
+    ├── circulares/                    # Director: school-wide announcements
+    ├── modulos/                       # Super-admin: per-tenant module flags
+    │
+    ├── profesor/                      # Teacher management
+    ├── estudiante/                    # Student management + student-facing features
+    │   ├── estudiante_horario/        # Student timetable
+    │   ├── estudiante_materias/       # Student subject list + detail
+    │   ├── estudiante_agenda/         # Student tasks & exams
+    │   │   └── entrega_tarea/         # Task submission flow
+    │   └── estudiante_biblioteca/     # Resource library
+    ├── padre/                         # Parent management + parent-facing features
+    ├── padre_agenda/                  # Parent: child's agenda view
+    ├── padre_asistencia/              # Parent: child's attendance view
+    ├── padre_anecdotario/             # Parent: child's anecdote view
+    ├── padre_nota/                    # Parent: child's grades view
+    │
+    ├── agenda/                        # Teacher: agenda / task creation
+    ├── anecdotario/                   # Teacher: anecdotal records
+    ├── asistencia/                    # Teacher: attendance recording
+    ├── libro_calificaciones/          # Teacher: grade book
+    └── criterio/                      # Teacher: grading criteria
+```
+
+## Feature Module Pattern
+
+Every feature follows the same four-layer convention, illustrated here with the `login` feature:
+
+```text
+feature/login/
+├── users.dart              ← Model:      plain Dart class, fromJson factory
+├── auth_repository.dart    ← Repository: Dio calls, returns model objects
+├── auth_viewmodel.dart     ← ViewModel:  ChangeNotifier, calls repo, holds state
+└── screens/
+    ├── login_screen.dart   ← Screen:     reads ViewModel via Provider.of / Consumer
+    └── register_screen.dart
+```
+
+| Layer | Responsibility |
+|---|---|
+| **Model** | Immutable data class. Parses API JSON via a `fromJson` factory. |
+| **Repository** | Raw API calls using the shared `Dio` instance. Returns typed model objects. |
+| **ViewModel** | `ChangeNotifier` that calls the repository, manages loading/error state, and calls `notifyListeners()`. |
+| **Screen** | Flutter `Widget` that reads the ViewModel with `Provider.of<T>(context)` and dispatches actions back to it. |
+
+## Data Flow
+
+Interactions travel in one direction through the stack:
+
+```text
+User Action (Widget)
+      │
+      ▼
+ViewModel.method()          ← ChangeNotifier, calls notifyListeners()
+      │
+      ▼
+Repository.apiCall()        ← returns typed model
+      │
+      ▼
+DioClient (interceptor)     ← injects Bearer token, logs request
+      │
+      ▼
+REST API  (HTTP/HTTPS)
+      │
+      ▼  (response)
+Repository parses JSON
+      │
+      ▼
+ViewModel updates state
+      │
+      ▼
+Widget rebuilds via Consumer / Provider.of
+```
+
+State never flows upward. Screens never call Dio directly, and repositories never hold UI state.
+
+## MultiProvider Setup
+
+`main.dart` creates a single `Dio` instance and passes it to every repository. All `ChangeNotifier` view-models are registered as `ChangeNotifierProvider` entries in a flat `MultiProvider` tree, so any widget in the app can access any view-model without prop-drilling.
+
+```dart
+// lib/main.dart (simplified)
+
+final dio = DioClient.create();
+final authViewModel = AuthViewModel(repository: AuthRepository(dio));
+await authViewModel.loadSession();
+
+runApp(
+  MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: authViewModel),          // Auth
+      ChangeNotifierProvider(create: (_) => TenantViewModel(...)), // Tenants
+      ChangeNotifierProvider(create: (_) => SubjectViewModel(...)),
+      ChangeNotifierProvider(create: (_) => CursoViewModel(...)),
+      ChangeNotifierProvider(create: (_) => ParaleloViewModel(...)),
+      ChangeNotifierProvider(create: (_) => ProfesorViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EstudianteViewModel(...)),
+      ChangeNotifierProvider(create: (_) => PadreFamiliaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => AcademicPeriodViewModel(...)
+          ..loadPeriodoActivo()),                                   // eager load
+      ChangeNotifierProvider(create: (_) => PeriodoEvaluacionViewModel(...)),
+      ChangeNotifierProvider(create: (_) => AsignacionViewModel(...)),
+      ChangeNotifierProvider(create: (_) => CircularViewModel(...)),
+      ChangeNotifierProvider(create: (_) => InscripcionViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EstudiantesClaseViewModel(...)),
+      ChangeNotifierProvider(create: (_) => AnecdotarioViewModel(...)),
+      ChangeNotifierProvider(create: (_) => AsistenciaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => AgendaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => ModuleViewModel(...)),
+      ChangeNotifierProvider(create: (_) => CriterioViewModel(...)),
+      ChangeNotifierProvider(create: (_) => LibroCalificacionesViewModel(...)),
+      ChangeNotifierProvider(create: (_) => PadreAgendaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => PadreAsistenciaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => PadreAnecdotarioViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EstudianteHorarioViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EstudianteMateriaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => PadreNotaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EstudianteAgendaViewModel(...)),
+      ChangeNotifierProvider(create: (_) => EntregaTareaViewModel(...)),
+    ],
+    child: MyApp(router: router),
+  ),
+);
+```
+
+<Note>
+  `AcademicPeriodViewModel` calls `..loadPeriodoActivo()` immediately after creation so the active academic period is available to all other view-models before the first screen renders.
+</Note>
+
+## Core Modules
+
+### `DioClient` — `lib/core/dio/dio_client.dart`
+
+The `DioClient.create()` static factory produces a configured `Dio` instance with:
+- A `baseUrl` pointing to `POST /api/…`
+- Default `Content-Type: application/json` and `Accept: application/json` headers
+- A 10 s connect timeout, 10 s send timeout, and 15 s receive timeout
+- An `InterceptorsWrapper` that reads the stored token and attaches `Authorization: Bearer <token>` to every outbound request
+- A 401 error handler that clears storage and calls `redirectToLogin()`
+
+### `SecureStorage` — `lib/core/storage/secure_storage.dart`
+
+A platform-aware static class. On **mobile** it delegates to `FlutterSecureStorage` with `AndroidOptions(encryptedSharedPreferences: true)`. On **web** (`kIsWeb == true`) it uses `SharedPreferences`. Stores four keys: `token`, `role`, `name`, `email`.
+
+### `AppRouter` — `lib/core/router/app_router.dart`
+
+`createRouter(authViewModel)` builds a `GoRouter` with:
+- `refreshListenable: authViewModel` — the router re-evaluates the `redirect` callback whenever `AuthViewModel` calls `notifyListeners()`
+- A global `redirect` that sends unauthenticated users to `/login` and authenticated users away from `/login`/`/register` to `/home`
+- A top-level `ShellRoute` that wraps all authenticated screens in `MainLayout` (AppBar + bottom navigation)
+- A module-level `late GoRouter _routerInstance` that exposes `redirectToLogin()` to the Dio interceptor without needing a `BuildContext`
+
+### `MainLayout` — `lib/core/layout/`
+
+The persistent shell rendered by the `ShellRoute`. Displays a role-aware bottom navigation bar and an `AppBar`. The `HomeDashboard` widget inside the shell reads `AuthViewModel.role` to show the correct set of navigation tiles.
+
+## Dependencies
+
+Full dependency table from `pubspec.yaml`:
+
+| Package | Version | Purpose |
+|---|---|---|
+| `flutter` | SDK | UI framework |
+| `flutter_localizations` | SDK | Internationalisation support |
+| `go_router` | `^14.0.0` | Declarative routing with guards |
+| `provider` | `^6.1.5+1` | InheritedWidget-based state management |
+| `dio` | `^5.9.2` | HTTP client with interceptors |
+| `flutter_secure_storage` | `^10.0.0` | Encrypted key-value store (mobile) |
+| `shared_preferences` | `^2.5.3` | Key-value store (web fallback) |
+| `http` | `^1.6.0` | Auxiliary HTTP utilities |
+| `file_picker` | `^8.0.0` | File selection for uploads |
+| `url_launcher` | `^6.3.0` | Open URLs / deep links |
+| `cupertino_icons` | `^1.0.8` | iOS-style icon set |

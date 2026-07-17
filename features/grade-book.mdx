@@ -1,0 +1,215 @@
+---
+title: "Grade Book"
+sidebarTitle: "Grade Book"
+description: "Manage evaluation criteria and enter student grades organised by evaluation period for a class assignment."
+---
+
+The grade book (*libro de calificaciones*) is where teachers enter and review student grades. Grades are structured around **evaluation criteria** — weighted components defined per assignment — and organised within **evaluation periods** (e.g. first quarter, second quarter). The result is a full grade grid: every student mapped against every criterion, with a computed weighted average. Before grades can be entered, evaluation criteria must be defined.
+
+## Evaluation Criteria
+
+### `Criterio` Model
+
+A criterion is a named, weighted grading component belonging to a specific evaluation period of an assignment.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier |
+| `periodoEvaluacionId` | `int?` | Evaluation period the criterion belongs to |
+| `periodoEvaluacion` | `PeriodoEvaluacion?` | Nested evaluation period object (when included by API) |
+| `nombre` | `String?` | Criterion name, e.g. `"Participación"` |
+| `porcentaje` | `double?` | Weight as a percentage, e.g. `30.0` |
+
+### `PeriodoEvaluacion` Model
+
+Evaluation periods are tenant-scoped subdivisions of an academic period (e.g. quarters, trimesters).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int?` | Unique identifier |
+| `academicPeriodId` | `int?` | Parent academic period |
+| `nombre` | `String?` | Period name, e.g. `"Primer Quimestre"` |
+| `orden` | `int?` | Display order index |
+| `tenantId` | `int?` | Tenant this period belongs to |
+
+### `CriterioRepository` Methods
+
+**List criteria for an assignment**
+
+```dart
+Future<List<Criterio>> getCriterios(int asignacionId)
+```
+
+**GET** `/criterios/asignacion/:asignacionId`
+
+---
+
+**Create a criterion**
+
+```dart
+Future<void> crearCriterio({
+  required int asignacionId,
+  required int periodoEvaluacionId,
+  required String nombre,
+  required double porcentaje,
+})
+```
+
+**POST** `/criterios/asignacion/:asignacionId`
+
+```json
+{
+  "periodo_evaluacion_id": 2,
+  "nombre": "Examen escrito",
+  "porcentaje": 40.0
+}
+```
+
+---
+
+**Update a criterion**
+
+```dart
+Future<void> actualizarCriterio({
+  required int criterioId,
+  required String nombre,
+  required double porcentaje,
+})
+```
+
+**PUT** `/criterios/:criterioId`
+
+---
+
+**Delete a criterion**
+
+```dart
+Future<void> eliminarCriterio(int criterioId)
+```
+
+**DELETE** `/criterios/:criterioId`
+
+---
+
+**List evaluation periods for an assignment**
+
+```dart
+Future<List<PeriodoEvaluacion>> getPeriodosEvaluacion(int asignacionId)
+```
+
+**GET** `/asignaciones/:asignacionId/periodos-evaluacion`
+
+Used to populate the period selector when creating or filtering criteria.
+
+## Grade Book
+
+### `LibroCalificaciones` Model
+
+The top-level grade book response is a grid of criteria columns and student rows.
+
+| Field | Type | Description |
+|---|---|---|
+| `criterios` | `List<CriterioLibro>` | Ordered list of criteria columns |
+| `estudiantes` | `List<EstudianteLibro>` | Each student's grades and weighted average |
+
+**`CriterioLibro`**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Criterion ID |
+| `nombre` | `String` | Criterion name |
+| `porcentaje` | `double` | Weight percentage |
+
+**`EstudianteLibro`**
+
+| Field | Type | Description |
+|---|---|---|
+| `estudianteId` | `int` | Student ID |
+| `estudiante` | `String` | Student full name |
+| `notas` | `List<NotaLibro>` | One entry per criterion |
+| `promedio` | `double` | Weighted average grade |
+
+**`NotaLibro`**
+
+| Field | Type | Description |
+|---|---|---|
+| `criterioId` | `int` | Criterion ID this grade belongs to |
+| `criterio` | `String` | Criterion name |
+| `porcentaje` | `double` | Criterion weight |
+| `nota` | `double` | Student grade for this criterion (mutable) |
+
+### `LibroCalificacionesRepository` Methods
+
+**Get evaluation periods for an assignment**
+
+```dart
+Future<List<PeriodoEvaluacion>> getPeriodosAsignacion(int asignacionId)
+```
+
+**GET** `/asignaciones/:asignacionId/periodos-evaluacion`
+
+Returns the list of evaluation periods available for period selection in the grade book UI.
+
+---
+
+**Get the full grade grid**
+
+```dart
+Future<LibroCalificaciones> getLibroCalificaciones({
+  required int asignacionId,
+  required int periodoId,
+})
+```
+
+**GET** `/asignaciones/:asignacionId/periodos-evaluacion/:periodoId/libro-calificaciones`
+
+Returns the complete `LibroCalificaciones` object with all criteria and student grades for the selected evaluation period.
+
+---
+
+**Save grades for a criterion**
+
+```dart
+Future<void> guardarNotas({
+  required int criterioId,
+  required List<Map<String, dynamic>> notas,
+})
+```
+
+**POST** `/criterios/:criterioId/notas`
+
+Persists grades for every student against a single criterion in one request. The `notas` list must contain one entry per student:
+
+```dart
+await repository.guardarNotas(
+  criterioId: 7,
+  notas: [
+    {'estudiante_id': 1, 'nota': 8.5},
+    {'estudiante_id': 2, 'nota': 9.0},
+    {'estudiante_id': 3, 'nota': 7.25},
+  ],
+);
+```
+
+The JSON body sent to the server:
+
+```json
+{
+  "notas": [
+    { "estudiante_id": 1, "nota": 8.5  },
+    { "estudiante_id": 2, "nota": 9.0  },
+    { "estudiante_id": 3, "nota": 7.25 }
+  ]
+}
+```
+
+<Warning>
+  All students in the class must be included in the `notas` array. Omitting a student will not clear their grade — send a `nota` of `0` explicitly if no score was earned.
+</Warning>
+
+## Routes
+
+| Route | Description |
+|---|---|
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/criterios` | Manage evaluation criteria for the assignment |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/libro-calificaciones` | View and enter grades in the grade book grid |

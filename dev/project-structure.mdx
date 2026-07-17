@@ -1,0 +1,159 @@
+---
+title: "Project Structure"
+sidebarTitle: "Project Structure"
+description: "A guide to how the Mi Cole Flutter codebase is organised across core infrastructure and feature modules."
+---
+
+Mi Cole follows a feature-based architecture where each domain has its own directory under `lib/feature/`. Cross-cutting concerns such as the HTTP client, router, secure storage, and shared widgets live in `lib/core/`. This separation keeps business logic isolated to its feature slice while infrastructure details remain reusable across the entire app.
+
+## Directory tree
+
+```
+lib/
+├── main.dart                        # App entry point, DI wiring, MultiProvider
+├── core/
+│   ├── dio/                         # HTTP client (DioClient)
+│   ├── router/                      # GoRouter configuration & redirectToLogin()
+│   ├── storage/                     # SecureStorage (token, role, name, email)
+│   ├── layout/                      # Shell layout & home dashboard
+│   └── widgest/                     # Shared UI widgets (AppCard, AppInput …)
+└── feature/
+    ├── login/                       # Auth screens, repository, viewmodel
+    ├── tenant/                      # School (colegio) management
+    ├── profesor/                    # Teacher management
+    ├── estudiante/                  # Student management + sub-features
+    │   ├── estudiante_agenda/       # Student assignments & task submission
+    │   ├── estudiante_horario/      # Student timetable
+    │   ├── estudiante_materias/     # Student subject detail
+    │   └── estudiante_biblioteca/   # Student resource library
+    ├── padre/                       # Parent management
+    ├── padre_agenda/                # Parent view of student assignments
+    ├── padre_asistencia/            # Parent view of attendance
+    ├── padre_anecdotario/           # Parent view of anecdotes
+    ├── padre_nota/                  # Parent view of grades
+    ├── agenda/                      # Tasks & assignments (teacher perspective)
+    ├── asistencia/                  # Attendance
+    ├── anecdotario/                 # Anecdotal records
+    ├── libro_calificaciones/        # Grade book
+    ├── circulares/                  # School announcements
+    ├── curso/                       # Courses
+    ├── paralelo/                    # Sections (parallel groups)
+    ├── subject/                     # Subjects (materias)
+    ├── periodo_academico/           # Academic periods
+    ├── periodo_evaluacion/          # Evaluation periods
+    ├── inscripcion/                 # Student enrolments
+    ├── asignacion_horario/          # Teacher schedule assignment
+    ├── criterio/                    # Grading criteria
+    └── modulos/                     # Tenant module management
+```
+
+## Feature module pattern
+
+Every feature directory follows the same four-layer convention:
+
+<Steps>
+  <Step title="Model">
+    A plain Dart class (or set of classes) that represents the domain entity returned by the API. Models are immutable data holders with `fromJson` factory constructors and, where needed, `toJson` methods.
+
+    ```dart
+    // e.g. feature/subject/subject_model.dart
+    class Subject {
+      final int id;
+      final String name;
+      Subject({required this.id, required this.name});
+      factory Subject.fromJson(Map<String, dynamic> json) => ...
+    }
+    ```
+  </Step>
+
+  <Step title="Repository">
+    Responsible for all network calls. It holds a `Dio` instance injected at construction time and exposes typed async methods. Repository methods throw `DioException` on failure; ViewModels catch and surface the error.
+
+    ```dart
+    // e.g. feature/subject/subject_repository.dart
+    class SubjectRepository {
+      final Dio _dio;
+      SubjectRepository(this._dio);
+
+      Future<List<Subject>> getAll() async {
+        final res = await _dio.get('/subjects');
+        return (res.data as List).map((e) => Subject.fromJson(e)).toList();
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="ViewModel">
+    A `ChangeNotifier` that owns the UI state: loading flags, error strings, and lists of models. It calls the repository and calls `notifyListeners()` after each state change so that dependent widgets rebuild.
+
+    ```dart
+    // e.g. feature/subject/subject_viewmodel.dart
+    class SubjectViewModel extends ChangeNotifier {
+      final SubjectRepository repository;
+      List<Subject> subjects = [];
+      bool loading = false;
+      String? error;
+
+      SubjectViewModel({required this.repository});
+
+      Future<void> loadAll() async {
+        loading = true; notifyListeners();
+        try {
+          subjects = await repository.getAll();
+        } catch (e) {
+          error = e.toString();
+        } finally {
+          loading = false; notifyListeners();
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="screens/">
+    Flutter `Widget` classes that consume a ViewModel via `Provider`. Screens do not call repositories directly — all data access goes through the ViewModel.
+
+    ```dart
+    // e.g. feature/subject/screens/subject_list_screen.dart
+    class SubjectListScreen extends StatelessWidget {
+      @override
+      Widget build(BuildContext context) {
+        final vm = context.watch<SubjectViewModel>();
+        if (vm.loading) return const CircularProgressIndicator();
+        return ListView.builder(
+          itemCount: vm.subjects.length,
+          itemBuilder: (_, i) => Text(vm.subjects[i].name),
+        );
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Core vs Feature
+
+<CardGroup cols={2}>
+  <Card title="core/" icon="gear">
+    Infrastructure shared by every feature: the `DioClient` singleton, the `GoRouter` factory, `SecureStorage`, `MainLayout` shell, and reusable widgets like `AppCard` and `AppInput`. Nothing in `core/` depends on a specific feature.
+  </Card>
+  <Card title="feature/" icon="folder-tree">
+    Self-contained domain slices. A feature may depend on `core/` utilities but must not import from a sibling feature. Cross-feature data (e.g. `AcademicPeriodRepository` shared by `CursoViewModel` and `InscripcionViewModel`) is injected at the `main.dart` wiring level.
+  </Card>
+</CardGroup>
+
+## Multi-platform support
+
+The Flutter project targets six platforms. Each has its own top-level directory alongside `lib/`:
+
+| Directory | Platform |
+|-----------|----------|
+| `android/` | Android |
+| `ios/` | iOS |
+| `web/` | Browser (PWA-ready, uses `PathUrlStrategy`) |
+| `linux/` | Linux desktop |
+| `macos/` | macOS desktop |
+| `windows/` | Windows desktop |
+
+<Note>
+  Web is the primary non-mobile target. `PathUrlStrategy` is enabled in `main()` so that URLs look like `/home` instead of `/#/home`, which is important for deep-linking and SEO.
+</Note>

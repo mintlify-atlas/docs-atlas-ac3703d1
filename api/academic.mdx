@@ -1,0 +1,605 @@
+---
+title: "Academic Periods & Structure API Reference"
+sidebarTitle: "Academic"
+description: "Manage academic periods, evaluation terms, courses, sections, subjects, and student enrollments that form the structural backbone of a Mi Cole school."
+---
+
+The academic structure of a Mi Cole school flows from top to bottom: an **Academic Period** (school year) contains **Evaluation Periods** (quarters/terms), **Courses** (grade levels), and **Sections** (parallels). **Subjects** are tenant-wide and can be assigned to teachers. **Enrollments** link students to a course/section within a specific period. All endpoints require `Authorization: Bearer <token>`.
+
+---
+
+## Academic Periods
+
+### GET /api/periodos
+
+List all academic periods for the authenticated tenant.
+
+```bash
+curl http://<your-server>/api/periodos \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns an array of `AcademicPeriod` objects.
+
+```json
+[
+  {
+    "id": 1,
+    "nombre": "Año Lectivo 2024-2025",
+    "fecha_inicio": "2024-09-01",
+    "fecha_fin": "2025-06-30",
+    "activo": true
+  }
+]
+```
+
+---
+
+### GET /api/periodos/activo
+
+Return the single academic period that is currently marked as active.
+
+```bash
+curl http://<your-server>/api/periodos/activo \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns a single `AcademicPeriod` object.
+
+---
+
+### POST /api/periodos
+
+Create a new academic period.
+
+```bash
+curl -X POST http://<your-server>/api/periodos \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Año Lectivo 2025-2026",
+    "fecha_inicio": "2025-09-01",
+    "fecha_fin": "2026-06-30",
+    "activo": false
+  }'
+```
+
+<ParamField body="nombre" type="string" required>
+  Descriptive name for the academic period (e.g. `"Año Lectivo 2024-2025"`).
+</ParamField>
+
+<ParamField body="fecha_inicio" type="string" required>
+  Start date in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField body="fecha_fin" type="string" required>
+  End date in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Whether this period should be immediately active. Defaults to `false`.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `AcademicPeriod` object.
+
+---
+
+### PATCH /api/periodos/:id/activar
+
+Mark an academic period as the active one (deactivating any currently active period).
+
+```bash
+curl -X PATCH http://<your-server>/api/periodos/2/activar \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period to activate.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### DELETE /api/periodos/:id
+
+Delete an academic period and all its nested data.
+
+```bash
+curl -X DELETE http://<your-server>/api/periodos/2 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## Evaluation Periods
+
+Evaluation periods (quarters, trimesters, etc.) are nested inside an academic period.
+
+### GET /api/periodos/:periodoId/periodos-evaluacion
+
+List all evaluation periods for the given academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/periodos-evaluacion \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the parent academic period.
+</ParamField>
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 1,
+    "academic_period_id": 1,
+    "nombre": "Primer Quimestre",
+    "orden": 1,
+    "tenant_id": 1
+  }
+]
+```
+
+---
+
+### POST /api/periodos/:periodoId/periodos-evaluacion
+
+Create a new evaluation period within an academic period.
+
+```bash
+curl -X POST http://<your-server>/api/periodos/1/periodos-evaluacion \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Segundo Quimestre",
+    "orden": 2
+  }'
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the parent academic period.
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Name of the evaluation period (e.g. `"Segundo Quimestre"`).
+</ParamField>
+
+<ParamField body="orden" type="integer" required>
+  Display order relative to other evaluation periods within the same academic period.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `PeriodoEvaluacion` object.
+
+---
+
+## Courses & Sections
+
+### GET /api/periodos/:periodoId/cursos
+
+List all courses configured for a specific academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/cursos \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 1,
+    "nombre": "Décimo",
+    "nivel": "Secundaria",
+    "descripcion": "Décimo año de educación básica",
+    "estado": true,
+    "tenant_id": 1
+  }
+]
+```
+
+---
+
+### POST /api/periodos/:periodoId/cursos
+
+Create a new course inside an academic period.
+
+```bash
+curl -X POST http://<your-server>/api/periodos/1/cursos \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Décimo",
+    "nivel": "Secundaria",
+    "descripcion": "Décimo año de educación básica"
+  }'
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Name of the course (e.g. `"Décimo"`).
+</ParamField>
+
+<ParamField body="nivel" type="string" required>
+  Education level (e.g. `"Primaria"`, `"Secundaria"`).
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Optional free-text description of the course.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Curso` object.
+
+---
+
+### DELETE /api/periodos/:periodoId/cursos/:id
+
+Delete a course from an academic period.
+
+```bash
+curl -X DELETE http://<your-server>/api/periodos/1/cursos/4 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="id" type="integer" required>
+  ID of the course to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### GET /api/periodos/:periodoId/cursos/:cursoId/paralelos
+
+List all sections (paralelos) of a specific course within an academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/cursos/1/paralelos \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="periodoId" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="cursoId" type="integer" required>
+  ID of the course.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns `{ "data": [ ...Paralelo[] ] }`.
+
+---
+
+### GET /api/paralelos
+
+List all sections (paralelos) for the authenticated tenant.
+
+```bash
+curl http://<your-server>/api/paralelos \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+Returns an array of `Paralelo` objects.
+
+---
+
+### POST /api/paralelos
+
+Create a new section (paralelo) and associate it with a course.
+
+```bash
+curl -X POST http://<your-server>/api/paralelos \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "curso_id": 1,
+    "nombre": "A",
+    "turno": "Mañana",
+    "capacidad": 35
+  }'
+```
+
+<ParamField body="curso_id" type="integer" required>
+  ID of the course this section belongs to.
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Section label (e.g. `"A"`, `"B"`).
+</ParamField>
+
+<ParamField body="turno" type="string">
+  Shift name (e.g. `"Mañana"`, `"Tarde"`).
+</ParamField>
+
+<ParamField body="capacidad" type="integer">
+  Maximum number of students allowed in the section.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Paralelo` object.
+
+---
+
+### DELETE /api/paralelos/:id
+
+Delete a section.
+
+```bash
+curl -X DELETE http://<your-server>/api/paralelos/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the section to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## Subjects
+
+Subjects are tenant-wide and reusable across periods.
+
+### GET /api/subjects
+
+List all subjects for the tenant.
+
+```bash
+curl http://<your-server>/api/subjects \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+[
+  { "id": 1, "name": "Matemáticas", "tenant_id": 1 },
+  { "id": 2, "name": "Lengua y Literatura", "tenant_id": 1 }
+]
+```
+
+---
+
+### GET /api/subjects/:id
+
+Retrieve a single subject by ID.
+
+```bash
+curl http://<your-server>/api/subjects/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the subject.
+</ParamField>
+
+---
+
+### POST /api/subjects
+
+Create a new subject.
+
+```bash
+curl -X POST http://<your-server>/api/subjects \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Ciencias Naturales" }'
+```
+
+<ParamField body="name" type="string" required>
+  Name of the subject.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Subject` object.
+
+---
+
+### PUT /api/subjects/:id
+
+Update the name of an existing subject.
+
+```bash
+curl -X PUT http://<your-server>/api/subjects/1 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Matemáticas Avanzadas" }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the subject to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  New name for the subject.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns the updated `Subject` object.
+
+---
+
+### DELETE /api/subjects/:id
+
+Delete a subject.
+
+```bash
+curl -X DELETE http://<your-server>/api/subjects/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the subject to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## Enrollments
+
+Enrollments link a student to a specific course and section within an academic period.
+
+### GET /api/periodos/:id/inscripciones
+
+List all enrollments for an academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/inscripciones \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an array of `Inscripcion` objects, each including nested `estudiante`, `curso`, and `paralelo` objects.
+
+---
+
+### POST /api/periodos/:id/inscripciones
+
+Enroll a student in a course and section for the given academic period.
+
+```bash
+curl -X POST http://<your-server>/api/periodos/1/inscripciones \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "estudiante_id": 12,
+    "curso_id": 1,
+    "paralelo_id": 2
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField body="estudiante_id" type="integer" required>
+  ID of the student to enroll.
+</ParamField>
+
+<ParamField body="curso_id" type="integer" required>
+  ID of the course (grade level) to assign the student to.
+</ParamField>
+
+<ParamField body="paralelo_id" type="integer" required>
+  ID of the section (paralelo) within the course.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Inscripcion` object.
+
+---
+
+### DELETE /api/periodos/:id/inscripciones/:inscripcionId
+
+Remove an enrollment record.
+
+```bash
+curl -X DELETE http://<your-server>/api/periodos/1/inscripciones/7 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="inscripcionId" type="integer" required>
+  ID of the enrollment to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### GET /api/periodos/:id/cursos/:cId/paralelos/:pId/estudiantes
+
+Retrieve the list of enrolled students in a specific course section for an academic period.
+
+```bash
+curl http://<your-server>/api/periodos/1/cursos/1/paralelos/2/estudiantes \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the academic period.
+</ParamField>
+
+<ParamField path="cId" type="integer" required>
+  ID of the course.
+</ParamField>
+
+<ParamField path="pId" type="integer" required>
+  ID of the section (paralelo).
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns `{ "estudiantes": [ ...EstudianteClase[] ] }`.
+
+---
+
+## AcademicPeriod Model
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the academic period.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Display name of the period (e.g. `"Año Lectivo 2024-2025"`).
+</ResponseField>
+
+<ResponseField name="fecha_inicio" type="string">
+  Start date in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="fecha_fin" type="string">
+  End date in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="activo" type="boolean">
+  `true` if this is the currently active academic period.
+</ResponseField>

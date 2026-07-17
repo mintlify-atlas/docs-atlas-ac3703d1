@@ -1,0 +1,265 @@
+---
+title: "Tenant Management"
+sidebarTitle: "Schools"
+description: "Manage schools (tenants) in Mi Cole. Super-admins provision and oversee every school; directors administer their own."
+---
+
+In Mi Cole, a **Tenant** represents a single school. The platform is multi-tenant by design: every school has its own isolated data, user accounts, and configuration. A super-admin creates and deletes tenants from a central panel, while the director assigned to each school manages its profile day-to-day—updating the name, slug, and logo through their own dedicated screen.
+
+<Note>
+  Each tenant is fully isolated. Users, enrollments, periods, and grades belonging to one school are never visible to another. The tenant context is resolved automatically from the authenticated user's session.
+</Note>
+
+---
+
+## Tenant Model
+
+The `Tenant` class represents a school record returned by the API.
+
+```dart
+class Tenant {
+  final int?    id;
+  final String? name;
+  final String? slug;
+  final String? logo;      // stored filename
+  final String? logoUrl;   // public URL resolved by the server
+
+  Tenant({this.id, this.name, this.slug, this.logo, this.logoUrl});
+
+  factory Tenant.fromJson(Map<String, dynamic> json) {
+    return Tenant(
+      id:      json['id'],
+      name:    json['name'],
+      slug:    json['slug'],
+      logo:    json['logo'],
+      logoUrl: json['logo_url'],
+    );
+  }
+}
+```
+
+<ParamField path="id" type="int" required>
+  Unique identifier for the tenant (school).
+</ParamField>
+
+<ParamField path="name" type="String" required>
+  Display name of the school, e.g. `"Colegio San Andrés"`.
+</ParamField>
+
+<ParamField path="slug" type="String" required>
+  URL-safe identifier used to scope API requests, e.g. `"san-andres"`.
+</ParamField>
+
+<ParamField path="logo" type="String">
+  Stored filename of the school logo on the server.
+</ParamField>
+
+<ParamField path="logoUrl" type="String">
+  Fully-qualified public URL for the school logo image, suitable for display in `Image.network()`.
+</ParamField>
+
+---
+
+## TenantResponse Model
+
+When a super-admin creates a new school, the API returns a `TenantResponse` that wraps the newly-created `Tenant`. This response is used to confirm creation and update the local list.
+
+```dart
+class TenantResponse {
+  final Tenant? tenant;
+
+  TenantResponse({this.tenant});
+
+  factory TenantResponse.fromJson(Map<String, dynamic> json) {
+    return TenantResponse(
+      tenant: json['tenant'] != null
+          ? Tenant.fromJson(json['tenant'])
+          : null,
+    );
+  }
+}
+```
+
+---
+
+## Super-Admin Capabilities
+
+Super-admins have full control over the school roster. All operations are exposed through `TenantRepository`.
+
+```dart
+class TenantRepository {
+  final Dio _dio;
+  TenantRepository(this._dio);
+  // ...
+}
+```
+
+<Tabs>
+  <Tab title="List Schools">
+    Fetches every registered school.
+
+    ```dart
+    Future<List<Tenant>> getTenants() async {
+      final response = await _dio.get('/tenants');
+      return (response.data as List)
+          .map((e) => Tenant.fromJson(e))
+          .toList();
+    }
+    ```
+
+    **Endpoint:** `GET /api/tenants`
+
+    ```json
+    [
+      { "id": 1, "name": "Colegio San Andrés", "slug": "san-andres", "logo": "logo1.png", "logo_url": "https://cdn.example.com/logo1.png" },
+      { "id": 2, "name": "Instituto La Merced", "slug": "la-merced", "logo": null, "logo_url": null }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Create School">
+    Creates a new school and provisions its director account in a single call.
+
+    ```dart
+    Future<TenantResponse> createTenant({
+      required String name,
+      required String slug,
+      required String directorName,
+      required String directorEmail,
+      required String password,
+    }) async {
+      final response = await _dio.post(
+        '/tenants',
+        data: {
+          'name':           name,
+          'slug':           slug,
+          'director_name':  directorName,
+          'director_email': directorEmail,
+          'password':       password,
+        },
+      );
+      return TenantResponse.fromJson(response.data);
+    }
+    ```
+
+    **Endpoint:** `POST /api/tenants`
+
+    ```json
+    {
+      "tenant": {
+        "id": 3,
+        "name": "Unidad Educativa El Pinar",
+        "slug": "el-pinar",
+        "logo": null,
+        "logo_url": null
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Delete School">
+    Permanently removes a tenant and all its associated data.
+
+    ```dart
+    Future<void> deleteTenant(int id) async {
+      await _dio.delete('/tenants/$id');
+    }
+    ```
+
+    **Endpoint:** `DELETE /api/tenants/:id`
+
+    <Warning>
+      Deleting a tenant is irreversible. All users, periods, enrollments, and grades belonging to that school will be permanently removed.
+    </Warning>
+  </Tab>
+
+  <Tab title="Assign Modules">
+    Assigns feature modules to a specific school.
+
+    **Endpoint:** `POST /api/tenants/:id/modules`
+
+    Navigating to `/colegios/:tenantId/modules` opens the `ModuleScreen` where the super-admin can toggle which modules are available to the school.
+  </Tab>
+</Tabs>
+
+---
+
+## Director Capabilities
+
+Directors manage their own school's profile. They can update the name and slug, and upload or replace the school logo.
+
+<Steps>
+  <Step title="Load current school data">
+    On screen init, `DirectorTenantScreen` calls `loadMyTenant()` to populate the form with the current values.
+
+    ```dart
+    Future<Tenant> getMyTenant() async {
+      final response = await _dio.get('/my-tenant');
+      final data = response.data['data'];
+      data['logo_url'] = response.data['logo_url'];
+      return Tenant.fromJson(data);
+    }
+    ```
+
+    **Endpoint:** `GET /api/my-tenant`
+  </Step>
+
+  <Step title="Update name and slug">
+    Directors can change the school's display name and slug using the edit form.
+
+    ```dart
+    Future<Tenant> updateTenant({
+      required String name,
+      required String slug,
+    }) async {
+      final response = await _dio.put(
+        '/tenants',
+        data: {'name': name, 'slug': slug},
+      );
+      return Tenant.fromJson(response.data['data']);
+    }
+    ```
+
+    **Endpoint:** `PUT /api/tenants`
+  </Step>
+
+  <Step title="Upload school logo">
+    The logo is sent as multipart form data. After a successful upload, `loadMyTenant()` is called automatically to refresh the displayed logo URL.
+
+    ```dart
+    Future<bool> uploadLogo(List<int> bytes, String filename) async {
+      final formData = FormData.fromMap({
+        'logo': MultipartFile.fromBytes(bytes, filename: filename),
+      });
+      await _dio.post('/tenants/logo', data: formData);
+      return true;
+    }
+    ```
+
+    **Endpoint:** `POST /api/tenants/logo`
+
+    The logo picker uses `image_picker` with `imageQuality: 80` before uploading.
+  </Step>
+</Steps>
+
+---
+
+## App Routes
+
+<CardGroup cols={2}>
+  <Card title="/colegios" icon="list">
+    Super-admin list of all registered schools (`TenantListScreen`).
+  </Card>
+  <Card title="/colegios/create" icon="plus">
+    Form to create a new school and director account (`TenantScreen`).
+  </Card>
+  <Card title="/colegios/:tenantId/modules" icon="puzzle-piece">
+    Assign feature modules to a school (`ModuleScreen`).
+  </Card>
+  <Card title="/colegio" icon="school">
+    Director view of their own school profile (`MyTenantScreen`).
+  </Card>
+  <Card title="/colegio/editar" icon="pen">
+    Director edit screen for name, slug, and logo (`DirectorTenantScreen`).
+  </Card>
+</CardGroup>

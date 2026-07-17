@@ -1,0 +1,634 @@
+---
+title: "Users API — Teachers, Students & Parents"
+sidebarTitle: "Users"
+description: "Create and manage teacher, student, and parent accounts within a Mi Cole tenant. Covers subject assignments for teachers, student enrollments helpers, and parent-child linking."
+---
+
+Mi Cole distinguishes three user types under a tenant: **teachers** (profesores), **students** (estudiantes), and **parents** (padres de familia). Each type shares a common `user` sub-object that holds `name` and `email`, while the type-specific record carries fields like `codigo_profesor`, `codigo_estudiante`, or `telefono`. All endpoints require `Authorization: Bearer <token>` and are scoped to the authenticated tenant.
+
+---
+
+## Teachers (Profesores)
+
+### GET /api/profesores
+
+List all teachers registered in the tenant.
+
+```bash
+curl http://<your-server>/api/profesores \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 3,
+    "codigo_profesor": "PRF-001",
+    "especialidad": "Matemáticas",
+    "user": {
+      "name": "Jorge Ramírez",
+      "email": "jorge@colegio.edu"
+    }
+  }
+]
+```
+
+---
+
+### POST /api/profesores
+
+Create a new teacher account.
+
+```bash
+curl -X POST http://<your-server>/api/profesores \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jorge Ramírez",
+    "email": "jorge@colegio.edu",
+    "password": "secure_pass",
+    "codigo_profesor": "PRF-001",
+    "especialidad": "Matemáticas"
+  }'
+```
+
+<ParamField body="name" type="string" required>
+  Full name of the teacher.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  E-mail address used for login. Must be unique within the platform.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial plain-text password for the teacher's account.
+</ParamField>
+
+<ParamField body="codigo_profesor" type="string" required>
+  Institutional code that uniquely identifies the teacher within the school (e.g. `"PRF-001"`).
+</ParamField>
+
+<ParamField body="especialidad" type="string">
+  Area of specialisation (e.g. `"Matemáticas"`, `"Lengua"`). Optional.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Profesor` object inside `data`.
+
+---
+
+### GET /api/profesores/:id
+
+Retrieve a single teacher's profile.
+
+```bash
+curl http://<your-server>/api/profesores/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the teacher record.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns a `Profesor` object.
+
+---
+
+### PUT /api/profesores/:id
+
+Update a teacher's profile. Only `password` is optional; omit it to keep the existing password.
+
+```bash
+curl -X PUT http://<your-server>/api/profesores/3 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jorge Ramírez M.",
+    "email": "jorge.ramirez@colegio.edu",
+    "codigo_profesor": "PRF-001",
+    "especialidad": "Matemáticas y Física"
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the teacher to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Updated full name.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Updated e-mail address.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password. Omit this field to keep the existing password unchanged.
+</ParamField>
+
+<ParamField body="codigo_profesor" type="string" required>
+  Updated institutional code.
+</ParamField>
+
+<ParamField body="especialidad" type="string">
+  Updated specialisation.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns the updated `Profesor` object.
+
+---
+
+### DELETE /api/profesores/:id
+
+Remove a teacher account from the tenant.
+
+```bash
+curl -X DELETE http://<your-server>/api/profesores/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the teacher to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### POST /api/profesores/asignar-materia
+
+Assign a subject to a teacher, enabling them to be allocated to class assignments for that subject.
+
+```bash
+curl -X POST http://<your-server>/api/profesores/asignar-materia \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profesor_id": 3,
+    "subject_id": 1
+  }'
+```
+
+<ParamField body="profesor_id" type="integer" required>
+  ID of the teacher.
+</ParamField>
+
+<ParamField body="subject_id" type="integer" required>
+  ID of the subject to assign.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### GET /api/profesores/:id/subjects
+
+List all subjects currently assigned to a teacher.
+
+```bash
+curl http://<your-server>/api/profesores/3/subjects \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the teacher.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns `{ "data": [ ...Subject[] ] }`.
+
+---
+
+## Students (Estudiantes)
+
+### GET /api/estudiantes
+
+List all students registered in the tenant.
+
+```bash
+curl http://<your-server>/api/estudiantes \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 12,
+    "codigo_estudiante": "EST-042",
+    "user": {
+      "name": "María González",
+      "email": "maria@colegio.edu"
+    }
+  }
+]
+```
+
+---
+
+### POST /api/estudiantes
+
+Create a new student account.
+
+```bash
+curl -X POST http://<your-server>/api/estudiantes \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "María González",
+    "email": "maria@colegio.edu",
+    "password": "estudiante_pass",
+    "codigo_estudiante": "EST-042"
+  }'
+```
+
+<ParamField body="name" type="string" required>
+  Full name of the student.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  E-mail address for the student's login account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial plain-text password.
+</ParamField>
+
+<ParamField body="codigo_estudiante" type="string" required>
+  Institutional student code (e.g. `"EST-042"`).
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `Estudiante` object inside `data`.
+
+---
+
+### GET /api/estudiantes/:id
+
+Retrieve a single student's profile.
+
+```bash
+curl http://<your-server>/api/estudiantes/12 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the student record.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns an `Estudiante` object.
+
+---
+
+### PUT /api/estudiantes/:id
+
+Update a student's profile.
+
+```bash
+curl -X PUT http://<your-server>/api/estudiantes/12 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "María González López",
+    "email": "maria.gonzalez@colegio.edu",
+    "codigo_estudiante": "EST-042"
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the student to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Updated full name.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Updated e-mail address.
+</ParamField>
+
+<ParamField body="codigo_estudiante" type="string" required>
+  Updated institutional student code.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password. Omit to keep the existing password unchanged.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns the updated `Estudiante` object inside `data`.
+
+---
+
+### DELETE /api/estudiantes/:id
+
+Remove a student account from the tenant.
+
+```bash
+curl -X DELETE http://<your-server>/api/estudiantes/12 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the student to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+## Parents (Padres de Familia)
+
+### GET /api/padre-familias
+
+List all parents registered in the tenant.
+
+```bash
+curl http://<your-server>/api/padre-familias \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 8,
+    "telefono": "+593987654321",
+    "ocupacion": "Ingeniero",
+    "user": {
+      "name": "Roberto González",
+      "email": "roberto@example.com"
+    }
+  }
+]
+```
+
+---
+
+### POST /api/padre-familias
+
+Create a new parent account.
+
+```bash
+curl -X POST http://<your-server>/api/padre-familias \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Roberto González",
+    "email": "roberto@example.com",
+    "password": "padre_pass",
+    "telefono": "+593987654321",
+    "ocupacion": "Ingeniero"
+  }'
+```
+
+<ParamField body="name" type="string" required>
+  Full name of the parent.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  E-mail address for the parent's login account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial plain-text password.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Contact phone number. Optional.
+</ParamField>
+
+<ParamField body="ocupacion" type="string">
+  Parent's occupation or profession. Optional.
+</ParamField>
+
+**Response — `201 Created`**
+
+Returns the created `PadreFamilia` object inside `data`.
+
+---
+
+### GET /api/padre-familias/:id
+
+Retrieve a single parent's profile.
+
+```bash
+curl http://<your-server>/api/padre-familias/8 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the parent record.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns a `PadreFamilia` object.
+
+---
+
+### PUT /api/padre-familias/:id
+
+Update a parent's profile.
+
+```bash
+curl -X PUT http://<your-server>/api/padre-familias/8 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Roberto González V.",
+    "email": "roberto.g@example.com",
+    "telefono": "+593912345678",
+    "ocupacion": "Arquitecto"
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the parent to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Updated full name.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Updated e-mail address.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password. Omit to keep the existing password unchanged.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Updated phone number.
+</ParamField>
+
+<ParamField body="ocupacion" type="string">
+  Updated occupation.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns the updated `PadreFamilia` object inside `data`.
+
+---
+
+### DELETE /api/padre-familias/:id
+
+Remove a parent account from the tenant.
+
+```bash
+curl -X DELETE http://<your-server>/api/padre-familias/8 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the parent to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
+### POST /api/padre-familias/asignar-estudiante
+
+Link a student to a parent, recording the family relationship.
+
+```bash
+curl -X POST http://<your-server>/api/padre-familias/asignar-estudiante \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "padre_familia_id": 8,
+    "estudiante_id": 12,
+    "parentesco": "padre"
+  }'
+```
+
+<ParamField body="padre_familia_id" type="integer" required>
+  ID of the parent.
+</ParamField>
+
+<ParamField body="estudiante_id" type="integer" required>
+  ID of the student to link.
+</ParamField>
+
+<ParamField body="parentesco" type="string">
+  Relationship label (e.g. `"padre"`, `"madre"`, `"tutor"`). Optional.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### GET /api/padre-familias/:id/estudiantes
+
+List all students linked to a parent.
+
+```bash
+curl http://<your-server>/api/padre-familias/8/estudiantes \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the parent.
+</ParamField>
+
+**Response — `200 OK`**
+
+Returns `{ "estudiantes": [ ...Estudiante[] ] }`.
+
+---
+
+### GET /api/padre/mis-hijos
+
+Authenticated parent endpoint — returns the children linked to the currently logged-in parent, including the relationship type.
+
+```bash
+curl http://<your-server>/api/padre/mis-hijos \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response — `200 OK`**
+
+```json
+{
+  "estudiantes": [
+    {
+      "id": 12,
+      "nombre": "María González",
+      "codigo_estudiante": "EST-042",
+      "parentesco": "padre"
+    }
+  ]
+}
+```
+
+<ResponseField name="estudiantes" type="PadreHijo[]">
+  Array of linked children.
+
+  <Expandable title="PadreHijo fields">
+    <ResponseField name="id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="nombre" type="string">Student full name.</ResponseField>
+    <ResponseField name="codigo_estudiante" type="string">Institutional student code.</ResponseField>
+    <ResponseField name="parentesco" type="string">Relationship label (e.g. `"padre"`, `"madre"`, `"tutor"`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Profesor Model
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the teacher record.
+</ResponseField>
+
+<ResponseField name="codigo_profesor" type="string">
+  Institutional code assigned to the teacher.
+</ResponseField>
+
+<ResponseField name="especialidad" type="string | null">
+  The teacher's area of specialisation.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Full name, read from the nested `user` object.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  E-mail address, read from the nested `user` object.
+</ResponseField>
+
+---
+
+## Estudiante Model
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the student record.
+</ResponseField>
+
+<ResponseField name="codigo_estudiante" type="string">
+  Institutional code assigned to the student.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Full name, read from the nested `user` object.
+</ResponseField>
+
+<ResponseField name="email" type="string | null">
+  E-mail address, read from the nested `user` object.
+</ResponseField>
