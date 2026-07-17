@@ -1,7 +1,7 @@
 ---
-title: "Teachers"
+title: "Teachers: Profiles, Subjects, and Schedules | Mi Cole"
 sidebarTitle: "Teachers"
-description: "Manage teaching staff, assign subjects, and configure weekly schedules for each professor in your school."
+description: "Manage teachers in Mi Cole: create profiles, assign subjects, and configure weekly timetable slots for each professor across academic periods."
 ---
 
 Teachers (profesores) are the teaching staff managed by the school director. Each teacher has a unique teacher code (`codigo_profesor`) and an optional specialty field that describes their area of expertise. Once created, a teacher can be assigned to one or more subjects and then given schedule slots that define when and where each class takes place during an academic period.
@@ -15,9 +15,8 @@ Every teacher record is returned from the API nested under a `user` object for t
 | `id` | `int` | Primary key, auto-assigned |
 | `name` | `string` | Full name (from the linked user account) |
 | `email` | `string` | Login e-mail (from the linked user account) |
-| `codigo` | `string` | Unique teacher code (`codigo_profesor`) |
+| `codigo_profesor` | `string` | Unique teacher code used in timetables and reports |
 | `especialidad` | `string?` | Optional specialty or subject area |
-| `roles` | `string[]` | Always includes `"profesor"` |
 
 ```json
 {
@@ -121,6 +120,59 @@ Future<Profesor> createProfesor({
 }
 ```
 
+### updateProfesor
+
+<ParamField body="id" type="int" required>
+  Numeric ID of the teacher record to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Updated full name of the teacher.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Updated login e-mail address.
+</ParamField>
+
+<ParamField body="codigo_profesor" type="string" required>
+  Updated unique teacher code.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password. Pass `null` to leave the existing password unchanged.
+</ParamField>
+
+<ParamField body="especialidad" type="string">
+  Updated specialty or subject area. Pass `null` to clear the field.
+</ParamField>
+
+```dart
+Future<Profesor> updateProfesor({
+  required int id,
+  required String name,
+  required String email,
+  String? password,
+  required String codigo,
+  String? especialidad,
+}) async {
+
+  final response = await _dio.put(
+    '/profesores/$id',
+    data: {
+      'name': name,
+      'email': email,
+      'password': password,
+      'codigo_profesor': codigo,
+      'especialidad': especialidad,
+    },
+  );
+
+  return Profesor.fromJson(
+    response.data,
+  );
+}
+```
+
 ### asignarMateria
 
 <ParamField body="profesor_id" type="int" required>
@@ -174,10 +226,11 @@ Scheduling a teacher involves two distinct steps. The first step links the teach
 | `/profesores` | `ProfesorListScreen` | Paginated list of all teachers |
 | `/profesores/create` | `ProfesorCreateScreen` | Form to create a new teacher |
 | `/profesores/:id/edit` | `ProfesorEditScreen` | Form to edit an existing teacher |
-| `/profesores/:id/materia` | `ProfesorAsignarMateriaScreen` | Assign a subject to the teacher |
-| `/profesores/:id/horario` | `ProfesorHorarioScreen` | Add schedule slots for the teacher |
-| `/profesores/:id/ver-horario` | `ProfesorVerHorarioScreen` | Read-only weekly timetable view |
-| `/profesores/:id/materias-asignadas` | `ProfesorMateriasAsignadasScreen` | List of subjects currently assigned |
+| `/profesores/:id/materia` | `AsignarMateriaScreen` | Assign a subject to the teacher |
+| `/profesores/:id/horario` | `AsignarHorarioScreen` | Add schedule slots for the teacher |
+| `/profesores/:id/ver-horario` | `HorarioProfesorScreen` | Read-only weekly timetable view |
+| `/profesores/:id/materias-asignadas` | `MateriasAsignadasScreen` | List of subjects currently assigned |
+| `/mis-clases` | `MisClasesScreen` | Teacher's own view of all assigned classes by period |
 
 <Note>
   Deleting a teacher is irreversible. The associated user account and all schedule assignments linked to that teacher are removed from the tenant. Back up the data or reassign schedule slots before confirming deletion.

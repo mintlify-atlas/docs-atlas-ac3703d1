@@ -1,7 +1,7 @@
 ---
-title: "Tenants API — School Management Endpoints"
+title: "Tenants API — Mi Cole School Provisioning & CRUD"
 sidebarTitle: "Tenants"
-description: "Create, read, update, and delete school tenants. Super-admins manage the full tenant list; directors interact with their own school through the /my-tenant endpoints."
+description: "Create, read, update, and delete school tenants in Mi Cole. Super-admins manage all schools; directors access their own school via /my-tenant."
 ---
 
 Mi Cole is a multi-tenant platform where each school is an isolated tenant. Super-admin users can provision new schools and view all existing ones. Directors log in to their own subdomain and interact only with their school via the `/my-tenant` route. Every endpoint below requires a valid `Authorization: Bearer <token>` header obtained from the [Authentication API](/api/auth).

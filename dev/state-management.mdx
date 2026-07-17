@@ -1,7 +1,7 @@
 ---
-title: "State Management"
+title: "Mi Cole State Management with Provider and ChangeNotifier"
 sidebarTitle: "State Management"
-description: "How Mi Cole uses Provider and ChangeNotifier ViewModels to manage UI state across the app."
+description: "How Mi Cole uses the Provider package and ChangeNotifier ViewModels to manage UI state, with the full MultiProvider registration list from main.dart."
 ---
 
 Mi Cole uses the [Provider](https://pub.dev/packages/provider) package for state management. Every feature exposes a `ChangeNotifier` ViewModel that owns the loading state, error messages, and data lists for that domain. Widgets subscribe to ViewModels using `context.watch<T>()` and trigger actions via `context.read<T>()`.

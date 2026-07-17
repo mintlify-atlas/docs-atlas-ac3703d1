@@ -1,7 +1,7 @@
 ---
-title: "Courses & Sections"
+title: "Courses and Sections (Cursos y Paralelos) in Mi Cole"
 sidebarTitle: "Courses & Sections"
-description: "Organize grade levels as courses (cursos) and subdivide them into sections (paralelos) with optional schedule assignments."
+description: "Organise grade levels as courses and subdivide them into sections (paralelos). Assign timetables to each section and manage the full class hierarchy."
 ---
 
 In Mi Cole, **courses** (`Curso`) represent grade levels or year groups—for example *Primero de Bachillerato* or *Séptimo de Básica*. Each course is associated with an academic period and can be divided into one or more **sections** (`Paralelo`), such as *Paralelo A*, *Paralelo B*, or *Vespertino*. This two-level hierarchy lets a school manage multiple classrooms within the same grade, each with its own teacher assignments and timetable.
@@ -173,6 +173,10 @@ class Paralelo {
 
 <ParamField path="capacidad" type="int">
   Maximum number of students the section can hold.
+</ParamField>
+
+<ParamField path="tenantId" type="int">
+  Tenant-scoping identifier, populated server-side.
 </ParamField>
 
 <ParamField path="curso" type="Curso">

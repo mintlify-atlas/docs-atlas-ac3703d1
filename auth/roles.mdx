@@ -146,7 +146,8 @@ redirect: (context, state) {
     | `…/asistencia` | Record attendance |
     | `…/agendas` | Create and view agenda entries (tasks, exams) |
     | `…/agendas/:agendaId` | Agenda entry detail |
-    | `…/agendas/:agendaId/entregas` | View student submissions |
+    | `/agendas/:agendaId/entregas` | View student submissions for an agenda entry |
+    | `/agendas/:agendaId/entregas/:entregaId` | Submission detail (teacher view) |
     | `…/anecdotarios` | Write and list anecdotal records |
     | `…/criterios` | Define grading criteria |
     | `…/libro-calificaciones` | Grade book |

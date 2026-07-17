@@ -1,7 +1,7 @@
 ---
-title: "Project Structure"
+title: "Mi Cole Flutter Project Structure and Architecture"
 sidebarTitle: "Project Structure"
-description: "A guide to how the Mi Cole Flutter codebase is organised across core infrastructure and feature modules."
+description: "A complete guide to how the Mi Cole Flutter codebase is organised across core infrastructure and feature modules, including the four-layer feature pattern."
 ---
 
 Mi Cole follows a feature-based architecture where each domain has its own directory under `lib/feature/`. Cross-cutting concerns such as the HTTP client, router, secure storage, and shared widgets live in `lib/core/`. This separation keeps business logic isolated to its feature slice while infrastructure details remain reusable across the entire app.
@@ -16,7 +16,8 @@ lib/
 │   ├── router/                      # GoRouter configuration & redirectToLogin()
 │   ├── storage/                     # SecureStorage (token, role, name, email)
 │   ├── layout/                      # Shell layout & home dashboard
-│   └── widgest/                     # Shared UI widgets (AppCard, AppInput …)
+│   ├── utils/                       # Shared utilities (e.g. ApiErrorHandler)
+│   └── widgest/                     # Shared UI widgets (auth_card, auth_input …)
 └── feature/
     ├── login/                       # Auth screens, repository, viewmodel
     ├── tenant/                      # School (colegio) management
@@ -134,7 +135,7 @@ Every feature directory follows the same four-layer convention:
 
 <CardGroup cols={2}>
   <Card title="core/" icon="gear">
-    Infrastructure shared by every feature: the `DioClient` singleton, the `GoRouter` factory, `SecureStorage`, `MainLayout` shell, and reusable widgets like `AppCard` and `AppInput`. Nothing in `core/` depends on a specific feature.
+    Infrastructure shared by every feature: the `DioClient` singleton, the `GoRouter` factory, `SecureStorage`, `MainLayout` shell, shared utilities such as `ApiErrorHandler`, and reusable widgets. Nothing in `core/` depends on a specific feature.
   </Card>
   <Card title="feature/" icon="folder-tree">
     Self-contained domain slices. A feature may depend on `core/` utilities but must not import from a sibling feature. Cross-feature data (e.g. `AcademicPeriodRepository` shared by `CursoViewModel` and `InscripcionViewModel`) is injected at the `main.dart` wiring level.

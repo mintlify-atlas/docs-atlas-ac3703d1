@@ -130,6 +130,31 @@ class SecureStorage {
     }
   }
 
+  /// Retrieves all four session keys as a map. Used by loadSession() on cold start.
+  static Future<Map<String, String?>> getSession() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return {
+        'token': prefs.getString('token'),
+        'role': prefs.getString('role'),
+        'name': prefs.getString('name'),
+        'email': prefs.getString('email'),
+      };
+    }
+    final results = await Future.wait([
+      _storage.read(key: 'token'),
+      _storage.read(key: 'role'),
+      _storage.read(key: 'name'),
+      _storage.read(key: 'email'),
+    ]);
+    return {
+      'token': results[0],
+      'role': results[1],
+      'name': results[2],
+      'email': results[3],
+    };
+  }
+
   /// Retrieves the stored JWT token (or null if no session exists).
   static Future<String?> getToken() async {
     if (kIsWeb) {

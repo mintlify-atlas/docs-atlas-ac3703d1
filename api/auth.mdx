@@ -1,10 +1,10 @@
 ---
-title: "Authentication API — Login, Register & Logout"
+title: "Mi Cole Authentication API — Login, Register & Logout"
 sidebarTitle: "Auth"
 description: "Authenticate users, register new super-admin accounts, and invalidate sessions. All other Mi Cole API endpoints require the Bearer token returned by login."
 ---
 
-The authentication endpoints let you obtain a session token, create a new super-admin account, and revoke a token when the session is over. Mi Cole uses a stateless Bearer token strategy — once you have the token you pass it in the `Authorization` header on every subsequent request. The base URL for all API calls is `http://<your-server>/api`, as configured in `DioClient`.
+The authentication endpoints let you obtain a session token, create a new super-admin account, and revoke a token when the session is over. Mi Cole uses a stateless Bearer token strategy — once you have the token you pass it in the `Authorization` header on every subsequent request. The base URL for all API calls is `http://192.168.100.206:8000/api` (configured in `DioClient`; update this value to match your deployment host).
 
 <Note>
   Store the `token` returned by login in secure storage and attach it to all subsequent requests as `Authorization: Bearer <token>`. If the server responds with `401 Unauthorized` at any point, the token has expired — the app will clear local credentials and redirect to the login screen automatically.
@@ -17,7 +17,7 @@ The authentication endpoints let you obtain a session token, create a new super-
 Validate credentials and receive a session token together with the authenticated user's profile.
 
 ```bash
-curl -X POST http://<your-server>/api/auth/login \
+curl -X POST http://192.168.100.206:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "director@colegio.edu",
@@ -79,10 +79,10 @@ curl -X POST http://<your-server>/api/auth/login \
 
 ## POST /api/auth/register
 
-Create a new super-admin account. This endpoint is typically used during initial platform setup and does not require an existing session.
+Create a new super-admin account. This endpoint is typically used during initial platform setup and does not require an existing session. The `super-admin` role is assigned automatically by the server — it cannot be overridden through this endpoint.
 
 ```bash
-curl -X POST http://<your-server>/api/auth/register \
+curl -X POST http://192.168.100.206:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Carlos Mendoza",
@@ -105,10 +105,6 @@ curl -X POST http://<your-server>/api/auth/register \
   Plain-text password. Enforce a minimum length on the client before sending.
 </ParamField>
 
-<ParamField body="role" type="string">
-  Role to assign to the user. Defaults to `super-admin` if omitted.
-</ParamField>
-
 **Response — `201 Created`**
 
 Returns the same `Users` object shape as the login response (see above), including `token`, `user`, and `roles`.
@@ -120,7 +116,7 @@ Returns the same `Users` object shape as the login response (see above), includi
 Revoke the current session token. The `Authorization` header is required; no request body is needed.
 
 ```bash
-curl -X POST http://<your-server>/api/auth/logout \
+curl -X POST http://192.168.100.206:8000/api/auth/logout \
   -H "Authorization: Bearer <token>"
 ```
 

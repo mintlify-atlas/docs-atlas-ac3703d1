@@ -1,7 +1,7 @@
 ---
-title: "Users API — Teachers, Students & Parents"
+title: "Users API — Mi Cole Teachers, Students & Parents"
 sidebarTitle: "Users"
-description: "Create and manage teacher, student, and parent accounts within a Mi Cole tenant. Covers subject assignments for teachers, student enrollments helpers, and parent-child linking."
+description: "Create and manage teacher, student, and parent accounts in a Mi Cole tenant. Includes subject assignments for teachers and parent-child linking."
 ---
 
 Mi Cole distinguishes three user types under a tenant: **teachers** (profesores), **students** (estudiantes), and **parents** (padres de familia). Each type shares a common `user` sub-object that holds `name` and `email`, while the type-specific record carries fields like `codigo_profesor`, `codigo_estudiante`, or `telefono`. All endpoints require `Authorization: Bearer <token>` and are scoped to the authenticated tenant.

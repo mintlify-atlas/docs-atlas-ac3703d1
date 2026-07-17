@@ -1,7 +1,7 @@
 ---
-title: "Routing"
+title: "Mi Cole GoRouter Navigation and Authentication Guards"
 sidebarTitle: "Routing"
-description: "How Mi Cole uses GoRouter for declarative, URL-based navigation with authentication guards and role-aware shell layouts."
+description: "How Mi Cole uses GoRouter for declarative, URL-based navigation with authentication guards, role-aware shell layouts, and a complete route reference table."
 ---
 
 Mi Cole uses [GoRouter](https://pub.dev/packages/go_router) for declarative, URL-based navigation with authentication guards. All routes are defined in `lib/core/router/app_router.dart`. The router is created after `AuthViewModel.loadSession()` resolves, so authentication state is accurate on the very first frame.

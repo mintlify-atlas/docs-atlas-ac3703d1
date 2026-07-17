@@ -1,7 +1,7 @@
 ---
 title: "Classroom Operations API — Attendance, Agenda & Grades"
 sidebarTitle: "Classroom"
-description: "Record and review daily attendance, manage the class agenda (tasks and exams), maintain the grade book with weighted criteria, log anecdotal records, and publish school circulars."
+description: "Record attendance, manage the class agenda with file attachments, maintain a weighted grade book, log anecdotal observations, and publish school circulars."
 ---
 
 Classroom operations cover everything a teacher does once the academic structure is in place. Attendance tracks who was present on a given date. The agenda holds homework assignments and exams, with optional file attachments and student submission tracking. The grade book is organized by evaluation period and weighted criteria. The anecdotario captures behavioral or academic observations per student. Circulars let directors and teachers broadcast announcements to the school community. All endpoints require `Authorization: Bearer <token>`.
@@ -464,6 +464,117 @@ curl http://<your-server>/api/asignaciones/5/periodos-evaluacion/1/libro-calific
 
 ---
 
+### GET /api/criterios/asignacion/:asignacionId
+
+List all grading criteria for a specific class assignment, grouped by evaluation period.
+
+```bash
+curl http://<your-server>/api/criterios/asignacion/5 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the class assignment (`asignacion_docente`).
+</ParamField>
+
+**Response — `200 OK`**
+
+```json
+[
+  {
+    "id": 1,
+    "periodo_evaluacion_id": 1,
+    "nombre": "Participación",
+    "porcentaje": 20,
+    "periodo_evaluacion": { "id": 1, "nombre": "Primer Quimestre" }
+  }
+]
+```
+
+---
+
+### POST /api/criterios/asignacion/:asignacionId
+
+Create a new grading criterion for a class assignment under a specific evaluation period.
+
+```bash
+curl -X POST http://<your-server>/api/criterios/asignacion/5 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "periodo_evaluacion_id": 1,
+    "nombre": "Participación",
+    "porcentaje": 20
+  }'
+```
+
+<ParamField path="asignacionId" type="integer" required>
+  ID of the class assignment.
+</ParamField>
+
+<ParamField body="periodo_evaluacion_id" type="integer" required>
+  ID of the evaluation period this criterion belongs to.
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Name of the criterion (e.g. `"Participación"`, `"Examen Final"`).
+</ParamField>
+
+<ParamField body="porcentaje" type="number" required>
+  Weight of this criterion as a percentage (0–100). All criteria within the same evaluation period should sum to 100.
+</ParamField>
+
+**Response — `201 Created`**
+
+---
+
+### PUT /api/criterios/:id
+
+Update the name and weight of an existing grading criterion.
+
+```bash
+curl -X PUT http://<your-server>/api/criterios/1 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Participación en clase",
+    "porcentaje": 25
+  }'
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the criterion to update.
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Updated name for the criterion.
+</ParamField>
+
+<ParamField body="porcentaje" type="number" required>
+  Updated weight as a percentage.
+</ParamField>
+
+**Response — `200 OK`**
+
+---
+
+### DELETE /api/criterios/:id
+
+Delete a grading criterion and all associated grades.
+
+```bash
+curl -X DELETE http://<your-server>/api/criterios/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField path="id" type="integer" required>
+  ID of the criterion to delete.
+</ParamField>
+
+**Response — `204 No Content`**
+
+---
+
 ### POST /api/criterios/:id/notas
 
 Save or update grades for all students under a specific criterion.
@@ -710,3 +821,27 @@ curl -X DELETE http://<your-server>/api/circulares/1 \
 </ParamField>
 
 **Response — `204 No Content`**
+
+---
+
+## Criterio Model
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the grading criterion.
+</ResponseField>
+
+<ResponseField name="periodo_evaluacion_id" type="integer">
+  ID of the evaluation period this criterion belongs to.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Name of the criterion (e.g. `"Participación"`, `"Examen Final"`).
+</ResponseField>
+
+<ResponseField name="porcentaje" type="number">
+  Weight of this criterion as a percentage (0–100).
+</ResponseField>
+
+<ResponseField name="periodo_evaluacion" type="object | null">
+  Nested `PeriodoEvaluacion` object included when listing criteria via `GET /api/criterios/asignacion/:asignacionId`.
+</ResponseField>

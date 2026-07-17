@@ -1,5 +1,5 @@
 ---
-title: "Agenda & Tasks"
+title: "Mi Cole Agenda & Tasks — Assignments and Submissions"
 sidebarTitle: "Agenda & Tasks"
 description: "Create, manage, and review homework assignments, exams, and other agenda items for a class — including file attachments and student submission tracking."
 ---
@@ -232,4 +232,6 @@ Returns the teacher's detailed view of one student submission, including any fil
 |---|---|
 | `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas` | List of all agenda items for the class |
 | `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas/create` | Form to create a new agenda item |
-| `/agendas/:id/entregas` | Submission tracker for a specific agenda item |
+| `/mis-clases/:periodoId/:cursoId/:paraleloId/:asignacionId/agendas/:agendaId` | Detail view for a single agenda item |
+| `/agendas/:agendaId/entregas` | Submission tracker for a specific agenda item |
+| `/agendas/:agendaId/entregas/:entregaId` | Teacher's detailed view of a single student submission |

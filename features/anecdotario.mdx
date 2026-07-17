@@ -1,5 +1,5 @@
 ---
-title: "Anecdotario"
+title: "Mi Cole Anecdotario — Student Observation Journal"
 sidebarTitle: "Anecdotario"
 description: "Behavioral and observational log where teachers record notable events about individual students, visible to parents through their child's dashboard."
 ---
@@ -113,7 +113,7 @@ Permanently removes the entry. This action cannot be undone.
 |---|---|
 | `/mis-hijos/:estudianteId/anecdotarios` | Parent view of all anecdotario entries for a specific child |
 
-Parents access this route through their child's dashboard at `/mis-hijos/:estudianteId`. The `PadreAnecdotarioRepository` fetches entries from `/padre/mis-hijos/:estudianteId/anecdotarios`, which returns only the entries belonging to that student and scoped to the parent's tenant.
+Parents access this route through their child's dashboard at `/mis-hijos/:estudianteId`. The `PadreAnecdotarioRepository` fetches entries from `GET /padre/mis-hijos/:estudianteId/anecdotarios`, returning all entries belonging to that student.
 
 <Note>
   Anecdotario entries are visible to parents in read-only mode. Only teachers can create or delete entries; parents have no write access to this feature.

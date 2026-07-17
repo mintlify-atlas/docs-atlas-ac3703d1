@@ -1,7 +1,7 @@
 ---
-title: "Students"
+title: "Students: Registration and Enrollment | Mi Cole App"
 sidebarTitle: "Students"
-description: "Register students, manage their profiles, and enroll them in courses and sections for each academic period."
+description: "Register students in Mi Cole, manage their profiles, and enroll them in courses and sections before they appear in gradebooks and attendance lists."
 ---
 
 Students (estudiantes) are the learners registered within a school tenant. Each student receives a unique student code (`codigo_estudiante`) that appears on attendance sheets, grade reports, and timetables. Creating a student record only sets up the identity and login credentials — the student must then be **enrolled** (inscribed) in a course and section for a specific academic period before they appear in classroom tools such as the gradebook and attendance tracker.
@@ -16,7 +16,6 @@ Student identity fields (`name`, `email`) are stored on the linked user account 
 | `name` | `string` | Full name (from the linked user account) |
 | `email` | `string` | Login e-mail (from the linked user account) |
 | `codigo_estudiante` | `string` | Unique student code |
-| `roles` | `string[]` | Always includes `"estudiante"` |
 
 ```json
 {

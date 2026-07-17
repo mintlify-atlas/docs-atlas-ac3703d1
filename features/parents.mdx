@@ -1,7 +1,7 @@
 ---
-title: "Parents"
+title: "Parents: Link Students and View School Reports | Mi Cole"
 sidebarTitle: "Parents"
-description: "Register parents and guardians, link them to their children, and give them real-time visibility into grades, attendance, and school communications."
+description: "Register parents and guardians, link them to students with a kinship type, and grant read-only access to grades, attendance, and school communications."
 ---
 
 Parents (padres de familia) are the guardians or legal representatives of enrolled students. A parent account can be linked to one or more students through a `PadreHijo` relationship that records the type of kinship (padre, madre, tutor, abuelo, or otro). Once the link is established, the parent gains a read-only portal showing grades, attendance records, the class agenda, and the anecdotario for each of their children — all scoped to the current tenant.
@@ -17,7 +17,6 @@ Parent identity fields (`name`, `email`) are stored on the linked user account a
 | `email` | `string` | Login e-mail (from the linked user account) |
 | `telefono` | `string?` | Optional contact phone number |
 | `ocupacion` | `string?` | Optional occupation or profession |
-| `roles` | `string[]` | Always includes `"padre_familia"` |
 
 ```json
 {
@@ -33,13 +32,13 @@ Parent identity fields (`name`, `email`) are stored on the linked user account a
 
 ## The PadreHijo Relationship Model
 
-The `PadreHijo` model represents the link between a parent and a student. It is returned when calling `GET /padre/mis-hijos` from a logged-in parent session.
+The `PadreHijo` model represents the link between a parent and a student. It is returned when calling `getMisHijos()`, which hits `GET /padre/mis-hijos` from a logged-in parent session.
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `int` | Student's primary key |
 | `nombre` | `string` | Student's full name |
-| `codigoEstudiante` | `string` | Student's unique code |
+| `codigo_estudiante` | `string` | Student's unique code |
 | `parentesco` | `string` | Kinship type: `padre`, `madre`, `tutor`, `abuelo`, or `otro` |
 
 ```json
@@ -74,7 +73,7 @@ The `PadreFamiliaRepository` class handles all HTTP communication with the API. 
   <Card title="Update Parent" icon="pen-to-square">
     `PUT /api/padre-familias/:id`
 
-    Updates the parent's profile. Omit `password` to keep the existing one.
+    Updates the parent's profile. Pass `null` for `password` to keep the existing one.
   </Card>
   <Card title="Delete Parent" icon="trash">
     `DELETE /api/padre-familias/:id`
@@ -140,6 +139,58 @@ Future<PadreFamilia> createPadre({
 }
 ```
 
+### updatePadre
+
+<ParamField body="id" type="int" required>
+  Numeric ID of the parent record to update.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Updated full name of the parent or guardian.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Updated login e-mail address.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password. Pass `null` to leave the existing password unchanged.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Updated contact phone number. Pass `null` to clear the field.
+</ParamField>
+
+<ParamField body="ocupacion" type="string">
+  Updated occupation or profession. Pass `null` to clear the field.
+</ParamField>
+
+```dart
+Future<PadreFamilia> updatePadre({
+  required int id,
+  required String name,
+  required String email,
+  String? password,
+  String? telefono,
+  String? ocupacion,
+}) async {
+  final response = await _dio.put(
+    '/padre-familias/$id',
+    data: {
+      "name": name,
+      "email": email,
+      "password": password,
+      "telefono": telefono,
+      "ocupacion": ocupacion,
+    },
+  );
+
+  return PadreFamilia.fromJson(
+    response.data["data"],
+  );
+}
+```
+
 ### asignarEstudiante
 
 <ParamField body="padre_familia_id" type="int" required>
@@ -169,6 +220,26 @@ Future<void> asignarEstudiante({
       "parentesco": parentesco,
     },
   );
+}
+```
+
+### getMisHijos
+
+Returns the children linked to the currently authenticated parent. The response body is read from the `estudiantes` key and each entry is decoded into a `PadreHijo` object.
+
+```dart
+Future<List<PadreHijo>> getMisHijos() async {
+
+  final response = await _dio.get(
+    "/padre/mis-hijos",
+  );
+
+  final List lista =
+      response.data["estudiantes"];
+
+  return lista
+      .map((e) => PadreHijo.fromJson(e))
+      .toList();
 }
 ```
 
@@ -220,6 +291,8 @@ Once a student is linked to a parent, the parent's authenticated session gives t
 | `/padres/create` | `PadreCreateScreen` | Form to register a new parent |
 | `/padres/:id/edit` | `PadreEditScreen` | Form to edit an existing parent's profile |
 | `/padres/:id/estudiantes` | `PadreAsignarEstudianteScreen` | Assign a student to the parent with kinship type |
+| `/mis-hijos` | `MisHijosScreen` | Authenticated parent's view of their linked children |
+| `/mis-hijos/:estudianteId` | `PadreDashboardScreen` | Dashboard for a specific child's data |
 
 <Note>
   `password` is only required when **creating** a parent account. When updating, leave the password field empty to keep the existing credentials unchanged. The API only includes the field in the `PUT` payload when a new value is explicitly provided.

@@ -1,7 +1,7 @@
 ---
-title: "Dio HTTP Client"
+title: "Mi Cole Dio HTTP Client Setup and Interceptors Guide"
 sidebarTitle: "Dio Client"
-description: "How Mi Cole configures Dio with authentication interceptors, timeout settings, and automatic 401 handling."
+description: "How Mi Cole configures Dio with authentication interceptors, timeout settings, and automatic 401 redirect handling across web and mobile platforms."
 ---
 
 The app uses [Dio](https://pub.dev/packages/dio) as its HTTP client, configured in `lib/core/dio/dio_client.dart`. A single `Dio` instance is created in `main()` and injected into every repository via the constructor, so the entire app shares one client with consistent base options and interceptors.
